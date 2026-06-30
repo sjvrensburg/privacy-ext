@@ -39,8 +39,13 @@ struct ClassifyResp {
     redacted: String,
 }
 
+// Label phrasing matters to GLiNER2: the bare "address" label scores street
+// addresses like "5 Elm Street" at ~0.44-0.51, under the 0.55 threshold, so they
+// slip through. "street address" scores the same spans at ~0.84-0.98 — reliably
+// caught without lowering the threshold (which would add false positives across
+// every label). See the probe in vendor-gliner2-rs/examples/probe_address.rs.
 const DEFAULT_LABELS: &[&str] = &[
-    "name", "address", "email", "phone_num", "id_num", "url", "username",
+    "name", "street address", "email", "phone_num", "id_num", "url", "username",
 ];
 
 fn header(k: &str, v: &str) -> Header {
