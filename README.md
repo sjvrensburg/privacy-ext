@@ -44,5 +44,5 @@ with PII into any form field and choose **Insert redacted** or **Insert original
 
 ## Notes
 - `gliner2-rs` gives ~0.999 confidence and returns ready-made `redacted` text.
-- The in-browser WASM approach (model running inside Chrome) lives at `extension/`
-  as a fallback; see project memory for why server-client was chosen instead.
+- A pure in-browser WASM approach (no daemon) was prototyped, then dropped in
+  favour of server-client; it remains in git history if ever needed.

@@ -23,10 +23,6 @@ content.js (paste hook) ─▶ background.js ─fetch─▶ 127.0.0.1:8731  (pii
   `src/main.rs` is the whole server; `run.sh` launches it.
 - `extension-client/` — the MV3 thin client (manifest, background fetch,
   content-script paste hook + redaction UI, popup settings). No model code.
-- `extension/` — **fallback only**: the earlier all-in-browser build that runs
-  the model in WASM (onnxruntime-web + transformers.js in an offscreen doc).
-  Heavier and slower; kept for reference. Don't extend this unless going
-  serverless again.
 - `semplifica/` — local copy of the 8 fp16 ONNX fragments + `tokenizer.json`
   (gitignored; used via `PII_MODELS_DIR` to skip the HF download).
 
@@ -58,6 +54,10 @@ classifier), orchestrated by gliner2-rs. fp16 ≈ 620 MB total.
 - The V2 engine needs **`tokenizer.json` inside `PII_MODELS_DIR`**.
 - Tune detection with the popup **threshold** (~0.55). gliner2-rs returns
   ~0.999 confidence and a ready-made `redacted` string (`mask_pii_text`).
+
+A pure in-browser WASM build (onnxruntime-web + transformers.js, no daemon) was
+prototyped and validated, then dropped in favour of server-client. It lives in
+git history and project memory if a serverless route is ever revived.
 
 ## Security
 
