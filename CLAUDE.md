@@ -62,5 +62,10 @@ git history and project memory if a serverless route is ever revived.
 ## Security
 
 Daemon binds `127.0.0.1`; set `PII_TOKEN` (bearer) so other local processes /
-web pages can't use it; CORS is `*` for dev — tighten to the
-`chrome-extension://<id>` origin for production.
+web pages can't use it. CORS is locked to the pinned extension origin: the
+extension's ID is fixed by the `key` in `extension-client/manifest.json`
+(`ihjamhkkcgbifajnbikldcjfamggnbaj`), and the server only echoes
+`Access-Control-Allow-Origin` for that origin (`DEFAULT_EXTENSION_ORIGIN` in
+`server/src/main.rs`). Override with `PII_ALLOWED_ORIGINS` (comma-separated) for
+a differently-keyed build. The signing key for the pinned ID lives in
+`extension-client/.keys/` (gitignored) — needed only to re-pack/publish.
