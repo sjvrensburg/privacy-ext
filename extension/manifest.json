@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "PII Redactor (GLiNER2, on-device)",
+  "version": "0.1.0",
+  "description": "Detects and redacts PII pasted into web forms, fully on-device using a GLiNER2 model via onnxruntime-web.",
+  "permissions": ["offscreen", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "PII Redactor" },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/*", "models/*", "pipeline.js", "offscreen.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

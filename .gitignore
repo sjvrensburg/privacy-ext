@@ -1,0 +1,16 @@
+# Rust build artifacts
+target/
+**/target/
+
+# Node
+node_modules/
+
+# Large model files — fetched at runtime (HF) or too big for git (>100 MB).
+# The server downloads these into the HF cache, or point PII_MODELS_DIR at them.
+*.onnx
+*.onnx.data
+*.gguf
+/semplifica/
+
+# Caches / scratch
+.cache/
