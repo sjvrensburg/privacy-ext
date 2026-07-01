@@ -36,10 +36,14 @@ jobs:
             --local-dir dl
           # Flatten into the layout the server expects (semplifica/ = 8 onnx +
           # tokenizer files, no subfolder). See CLAUDE.md "Model".
+          # tokenizer*.json may sit at the repo root or inside fp16_v2/, so
+          # collect them from anywhere in the download.
           mkdir -p semplifica
           mv dl/fp16_v2/* semplifica/
-          cp dl/tokenizer*.json semplifica/
+          find dl -name 'tokenizer*.json' -exec cp -n {} semplifica/ \;
           ls -lh semplifica
+          test -f semplifica/tokenizer.json || { echo "::error::tokenizer.json missing"; exit 1; }
+          ls semplifica/*.onnx >/dev/null || { echo "::error::no .onnx fragments"; exit 1; }
 
       - name: Upload model artifact
         uses: actions/upload-artifact@v4
