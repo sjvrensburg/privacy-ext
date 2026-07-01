@@ -261,7 +261,13 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "open" => show_settings(app),
-                    "quit" => app.exit(0),
+                    // Signal intent, then force-exit: the ExitRequested guard
+                    // below otherwise keeps the app alive in the tray, and on
+                    // some desktops app.exit() alone doesn't tear down cleanly.
+                    "quit" => {
+                        app.cleanup_before_exit();
+                        std::process::exit(0);
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
@@ -292,9 +298,13 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error building tauri app")
         .run(|_app, event| {
-            // Keep running in the tray even with no visible windows.
-            if let tauri::RunEvent::ExitRequested { api, .. } = event {
-                api.prevent_exit();
+            // Keep running in the tray when the last window is closed (code
+            // == None), but honour an explicit app.exit() from the Quit menu
+            // (code == Some(_)), otherwise the app can never be quit.
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                if code.is_none() {
+                    api.prevent_exit();
+                }
             }
         });
 }

@@ -5,8 +5,11 @@ name: release
 # ordinary user installs one file and it just works — no model download, no
 # runtime to install.
 #
-# Code signing is NOT wired up yet (no certificate). Once an OSSign Authenticode
-# cert is available, add a signing step to the build-windows job (see the TODO).
+# The Windows .exe is shipped UNSIGNED. Free OSS Authenticode certs (OSSign etc.)
+# require an established project reputation / history of real use, which this
+# project does not yet have, so users will see a SmartScreen warning on first
+# run. Revisit once the project has a track record (or budget for a paid EV/OV
+# cert); the signing step would go in the build-windows job (see the TODO).
 
 on:
   push:
@@ -139,9 +142,10 @@ jobs:
         working-directory: desktop
         run: cargo tauri build --bundles nsis
 
-      # TODO(signing): once an OSSign Authenticode certificate is available, sign
-      # the produced .exe here (e.g. with the ossign CLI / signtool) before upload.
-      # Until then the Windows installer is unsigned and SmartScreen will warn.
+      # TODO(signing): the .exe ships unsigned — free OSS Authenticode certs need
+      # a project reputation/usage history we don't have yet, so SmartScreen will
+      # warn on first run. When a cert (free once reputable, or paid EV/OV) is
+      # available, sign the .exe here (signtool / ossign CLI) before upload.
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
