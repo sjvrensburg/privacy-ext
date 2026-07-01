@@ -29,11 +29,17 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           pip install --quiet "huggingface_hub"
-          hf download "$HF_REPO" \
-            --include "fp16_v2/*" \
-            --include "tokenizer.json" \
-            --include "tokenizer_config.json" \
-            --local-dir dl
+          # Retry to ride out transient HF 429/5xx rate limits.
+          for attempt in 1 2 3 4 5; do
+            hf download "$HF_REPO" \
+              --include "fp16_v2/*" \
+              --include "tokenizer.json" \
+              --include "tokenizer_config.json" \
+              --local-dir dl && break
+            echo "hf download attempt $attempt failed; retrying in $((attempt*20))s"
+            sleep $((attempt*20))
+          done
+          test -d dl/fp16_v2 || { echo "::error::model download failed after retries"; exit 1; }
           # Flatten into the layout the server expects (semplifica/ = 8 onnx +
           # tokenizer files, no subfolder). See CLAUDE.md "Model".
           # tokenizer*.json may sit at the repo root or inside fp16_v2/, so
