@@ -1,0 +1,89 @@
+name: ci
+
+# Fast regression checks on every push/PR (the heavy installer build lives in
+# release.yml, tag-triggered). Two jobs:
+#   * server-smoke  — boot pii-server against the real model and assert the
+#     health / auth / redaction contract the extension depends on.
+#   * desktop-check — compile the Tauri app (no bundling) so a broken desktop
+#     build is caught here instead of at release time.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  HF_REPO: SemplificaAI/gliner2-privacy-filter-PII-multi
+  ORT_VERSION: "1.20.1"
+
+jobs:
+  server-smoke:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+
+      # Cache the ~600 MB model so most runs skip the HF download entirely.
+      - name: Cache model
+        id: model-cache
+        uses: actions/cache@v4
+        with:
+          path: semplifica
+          key: model-${{ env.HF_REPO }}-fp16_v2-v1
+
+      - name: Download model
+        if: steps.model-cache.outputs.cache-hit != 'true'
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          pip install --quiet "huggingface_hub"
+          for attempt in 1 2 3 4 5; do
+            hf download "$HF_REPO" \
+              --include "fp16_v2/*" \
+              --include "tokenizer.json" \
+              --include "tokenizer_config.json" \
+              --local-dir dl && break
+            echo "hf download attempt $attempt failed; retrying in $((attempt*20))s"
+            sleep $((attempt*20))
+          done
+          mkdir -p semplifica
+          mv dl/fp16_v2/* semplifica/
+          find dl -name 'tokenizer*.json' -exec cp -n {} semplifica/ \;
+          test -f semplifica/tokenizer.json || { echo "::error::tokenizer.json missing"; exit 1; }
+
+      - name: Fetch ONNX Runtime
+        run: |
+          url="https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+          curl -fL --retry 3 -o ort.tgz "$url"
+          tar xzf ort.tgz
+          echo "ORT_DYLIB_PATH=$PWD/onnxruntime-linux-x64-${ORT_VERSION}/lib/libonnxruntime.so" >> "$GITHUB_ENV"
+
+      - name: Build server
+        run: cargo build --release --manifest-path server/Cargo.toml
+
+      - name: Smoke test
+        run: bash server/smoke-test.sh
+
+  desktop-check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: cargo check (desktop)
+        working-directory: desktop/src-tauri
+        run: cargo check

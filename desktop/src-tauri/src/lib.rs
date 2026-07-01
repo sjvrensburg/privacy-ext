@@ -87,11 +87,34 @@ struct Shared {
     config: Mutex<AppConfig>,
 }
 
+/// A fresh 128-bit bearer token (32 hex chars) for extension ↔ daemon auth.
+fn generate_token() -> String {
+    uuid::Uuid::new_v4().simple().to_string()
+}
+
 fn load_config(path: &PathBuf) -> AppConfig {
     std::fs::read_to_string(path)
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default()
+}
+
+/// Load config, guaranteeing a non-empty token so the daemon is authenticated by
+/// default (secure-by-default): a first run — or an older config that predates
+/// tokens — gets a freshly generated one, persisted immediately. The user can
+/// still clear it in the UI to run open, but that's now an explicit choice.
+fn load_or_init_config(path: &PathBuf) -> AppConfig {
+    let existed = path.exists();
+    let mut cfg = load_config(path);
+    let mut dirty = !existed;
+    if cfg.token.trim().is_empty() {
+        cfg.token = generate_token();
+        dirty = true;
+    }
+    if dirty {
+        let _ = save_config_file(path, &cfg);
+    }
+    cfg
 }
 
 fn save_config_file(path: &PathBuf, cfg: &AppConfig) -> anyhow::Result<()> {
@@ -233,7 +256,7 @@ pub fn run() {
                 .app_config_dir()
                 .map(|d| d.join("config.json"))
                 .unwrap_or_else(|_| PathBuf::from("config.json"));
-            let cfg = load_config(&config_path);
+            let cfg = load_or_init_config(&config_path);
 
             let shared = Shared {
                 live: new_live_state(cfg.to_live()),
