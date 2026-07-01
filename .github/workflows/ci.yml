@@ -85,13 +85,17 @@ jobs:
           workspaces: desktop/src-tauri
 
       # tauri-build validates the bundle.resources globs (from
-      # tauri.linux.conf.json) even on `cargo check`, so stage placeholders to
-      # satisfy them — this job only type-checks, it doesn't bundle.
+      # tauri.linux.conf.json) and the externalBin sidecar path even on
+      # `cargo check`, so stage placeholders to satisfy them — this job only
+      # type-checks, it doesn't bundle.
       - name: Stage placeholder resources
         working-directory: desktop/src-tauri
         run: |
-          mkdir -p resources/semplifica
+          mkdir -p resources/semplifica binaries
           touch resources/semplifica/placeholder resources/libonnxruntime.so
+          triple="$(rustc -vV | sed -n 's/^host: //p')"
+          touch "binaries/pii-native-host-${triple}"
+          chmod +x "binaries/pii-native-host-${triple}"
 
       - name: cargo check (desktop)
         working-directory: desktop/src-tauri

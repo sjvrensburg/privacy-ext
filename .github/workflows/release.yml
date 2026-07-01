@@ -96,6 +96,9 @@ jobs:
           cp onnxruntime-linux-x64-${ORT_VERSION}/lib/libonnxruntime.so \
              desktop/src-tauri/resources/libonnxruntime.so
 
+      - name: Build native-messaging sidecar
+        run: bash desktop/src-tauri/scripts/prepare-sidecar.sh
+
       - name: Build installers
         working-directory: desktop
         run: cargo tauri build --bundles deb,appimage
@@ -137,6 +140,10 @@ jobs:
           Expand-Archive ort.zip -DestinationPath ort
           Copy-Item "ort/onnxruntime-win-x64-$env:ORT_VERSION/lib/onnxruntime.dll" `
             -Destination "desktop/src-tauri/resources/onnxruntime.dll"
+
+      - name: Build native-messaging sidecar
+        shell: bash
+        run: bash desktop/src-tauri/scripts/prepare-sidecar.sh
 
       - name: Build installer
         working-directory: desktop

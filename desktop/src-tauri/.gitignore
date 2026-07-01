@@ -2,3 +2,5 @@
 /gen/schemas
 # Bundled at build/CI time, never committed (see CLAUDE.md "Model"):
 /resources
+# Sidecar binary staged by scripts/prepare-sidecar.sh, built fresh each time:
+/binaries

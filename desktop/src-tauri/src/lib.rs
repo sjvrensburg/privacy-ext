@@ -92,6 +92,73 @@ fn generate_token() -> String {
     uuid::Uuid::new_v4().simple().to_string()
 }
 
+/// Name Chrome/Chromium look up in NativeMessagingHosts — must match
+/// `NATIVE_HOST` in `extension-client/background.js` and the manifest's
+/// `allowed_origins` must match `DEFAULT_EXTENSION_ORIGIN`.
+const NATIVE_HOST_NAME: &str = "ai.semplifica.privacy_redactor";
+
+/// Registers the `pii-native-host` sidecar with the browser so the extension
+/// can pair with zero manual config. Best-effort: a failure here just means
+/// the extension falls back to showing "not paired" until the tray app has
+/// run once with the sidecar present.
+fn install_native_messaging_host(_app: &AppHandle) {
+    let host_binary_name = if cfg!(windows) { "pii-native-host.exe" } else { "pii-native-host" };
+    let exe_dir = match std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.to_path_buf())) {
+        Some(d) => d,
+        None => return,
+    };
+    let host_path = exe_dir.join(host_binary_name);
+    if !host_path.exists() {
+        eprintln!("Native messaging host not found at {}; pairing unavailable", host_path.display());
+        return;
+    }
+
+    let manifest = serde_json::json!({
+        "name": NATIVE_HOST_NAME,
+        "description": "Privacy Redactor pairing host",
+        "path": host_path.to_string_lossy(),
+        "type": "stdio",
+        "allowed_origins": [format!("{}/", pii_server::DEFAULT_EXTENSION_ORIGIN)],
+    });
+    let manifest_str = match serde_json::to_string_pretty(&manifest) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(config_dir) = dirs::config_dir() {
+            for browser in ["google-chrome", "chromium"] {
+                let dir = config_dir.join(browser).join("NativeMessagingHosts");
+                if std::fs::create_dir_all(&dir).is_ok() {
+                    let _ = std::fs::write(dir.join(format!("{NATIVE_HOST_NAME}.json")), &manifest_str);
+                }
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Ok(config_dir) = _app.path().app_config_dir() {
+            let _ = std::fs::create_dir_all(&config_dir);
+            let manifest_path = config_dir.join(format!("{NATIVE_HOST_NAME}.json"));
+            if std::fs::write(&manifest_path, &manifest_str).is_ok() {
+                use winreg::enums::HKEY_CURRENT_USER;
+                use winreg::RegKey;
+                let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+                for browser_key in [
+                    format!("Software\\Google\\Chrome\\NativeMessagingHosts\\{NATIVE_HOST_NAME}"),
+                    format!("Software\\Microsoft\\Edge\\NativeMessagingHosts\\{NATIVE_HOST_NAME}"),
+                ] {
+                    if let Ok((key, _)) = hkcu.create_subkey(&browser_key) {
+                        let _ = key.set_value("", &manifest_path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn load_config(path: &PathBuf) -> AppConfig {
     std::fs::read_to_string(path)
         .ok()
@@ -250,6 +317,7 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             ensure_ort_dylib(&handle);
+            install_native_messaging_host(&handle);
 
             let config_path = app
                 .path()
