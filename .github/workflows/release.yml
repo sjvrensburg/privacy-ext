@@ -28,8 +28,8 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          pip install --quiet "huggingface_hub[cli]"
-          huggingface-cli download "$HF_REPO" \
+          pip install --quiet "huggingface_hub"
+          hf download "$HF_REPO" \
             --include "fp16_v2/*" "tokenizer.json" "tokenizer_config.json" \
             --local-dir dl
           # Flatten into the layout the server expects (semplifica/ = 8 onnx +
