@@ -84,6 +84,15 @@ jobs:
         with:
           workspaces: desktop/src-tauri
 
+      # tauri-build validates the bundle.resources globs (from
+      # tauri.linux.conf.json) even on `cargo check`, so stage placeholders to
+      # satisfy them — this job only type-checks, it doesn't bundle.
+      - name: Stage placeholder resources
+        working-directory: desktop/src-tauri
+        run: |
+          mkdir -p resources/semplifica
+          touch resources/semplifica/placeholder resources/libonnxruntime.so
+
       - name: cargo check (desktop)
         working-directory: desktop/src-tauri
         run: cargo check
