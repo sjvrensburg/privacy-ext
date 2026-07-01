@@ -2,18 +2,14 @@ const $ = (id) => document.getElementById(id);
 const status = (m, cls) => { const s = $("status"); s.textContent = m; s.className = cls || ""; };
 
 (async () => {
-  const s = await chrome.storage.local.get(["enabled", "serverUrl", "token", "threshold"]);
+  const s = await chrome.storage.local.get(["enabled", "threshold"]);
   $("enabled").checked = s.enabled !== false;
-  $("serverUrl").value = s.serverUrl ?? "http://127.0.0.1:8731";
-  $("token").value = s.token ?? "";
   $("threshold").value = s.threshold ?? "0.55";
 })();
 
 async function saveSettings() {
   await chrome.storage.local.set({
     enabled: $("enabled").checked,
-    serverUrl: $("serverUrl").value.trim(),
-    token: $("token").value.trim(),
     threshold: parseFloat($("threshold").value) || 0.55,
   });
 }
@@ -37,3 +33,43 @@ $("test").addEventListener("click", async () => {
     }
   );
 });
+
+// Live connection chip, Zotero-connector style: a small colored dot that
+// polls /health via the background worker so the user always sees whether
+// the tray daemon is reachable, without having to click "Test connection".
+function setChip(state, text) {
+  $("chipDot").className = `dot ${state}`;
+  $("chipText").textContent = text;
+}
+
+function refreshChip() {
+  setChip("checking", "Checking…");
+  chrome.runtime.sendMessage({ type: "PF_HEALTH" }, (res) => {
+    if (chrome.runtime.lastError) {
+      setChip("disconnected", "Extension error");
+      return;
+    }
+    if (res?.ok) {
+      setChip("connected", `Connected (port ${res.port})`);
+    } else if (res?.paired) {
+      setChip("disconnected", "Paired, but daemon unreachable");
+    } else {
+      setChip("disconnected", res?.error || "Not paired");
+    }
+  });
+}
+
+$("repair").addEventListener("click", () => {
+  setChip("checking", "Re-pairing…");
+  chrome.runtime.sendMessage({ type: "PF_REPAIR" }, (res) => {
+    if (chrome.runtime.lastError || !res?.ok) {
+      setChip("disconnected", res?.error || chrome.runtime.lastError?.message || "Pairing failed");
+      return;
+    }
+    refreshChip();
+  });
+});
+
+refreshChip();
+const chipInterval = setInterval(refreshChip, 3000);
+window.addEventListener("unload", () => clearInterval(chipInterval));

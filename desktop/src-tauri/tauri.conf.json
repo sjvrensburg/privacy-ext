@@ -35,6 +35,7 @@
     ],
     "longDescription": "On-device PII redactor. Runs a local detection daemon the Chrome extension talks to; no text leaves your machine.",
     "shortDescription": "On-device PII redaction daemon",
-    "resources": {}
+    "resources": {},
+    "externalBin": ["binaries/pii-native-host"]
   }
 }

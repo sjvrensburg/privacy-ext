@@ -32,15 +32,25 @@ API: `GET /health` · `POST /classify {text, threshold?}` → `{entities:[{label
 ## 2. Load the extension (`extension-client/`)
 
 `chrome://extensions` → Developer mode → **Load unpacked** → `extension-client/`.
-Open the popup → set **Daemon URL** (default `http://127.0.0.1:8731`) and **Token**
-(must match `PII_TOKEN`) → **Save** → **Test connection**. Then paste a sentence
-with PII into any form field and choose **Insert redacted** or **Insert original**.
+
+Pairing is zero-config when the **desktop tray app** (`desktop/`) is running: it
+persists its port + token and registers a Chrome Native Messaging host
+(`ai.semplifica.privacy_redactor`); the extension calls that host on demand and
+never needs a manually-typed URL or token. Open the popup to see the live
+connection chip (green = paired and reachable) and a **Re-pair** button for
+when the tray app's token has rotated. Then paste a sentence with PII into any
+form field and choose **Insert redacted** or **Insert original**.
+
+Running the headless daemon (`server/`) without the desktop app means there's
+nothing to pair with — the desktop app is the supported way to configure the
+extension.
 
 ## Security
 - Daemon binds `127.0.0.1` only.
-- Set `PII_TOKEN` so random local processes / web pages can't use it.
-- CORS is `*` for dev — tighten `Access-Control-Allow-Origin` in `server/src/main.rs`
-  to your `chrome-extension://<id>` origin for production.
+- Set `PII_TOKEN` so random local processes / web pages can't use it (the
+  desktop app generates one automatically; see its `AppConfig`).
+- CORS only echoes `Access-Control-Allow-Origin` for the pinned extension
+  origin (`DEFAULT_EXTENSION_ORIGIN` in `server/src/main.rs`).
 
 ## Notes
 - `gliner2-rs` gives ~0.999 confidence and returns ready-made `redacted` text.
