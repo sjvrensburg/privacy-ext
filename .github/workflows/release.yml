@@ -30,7 +30,9 @@ jobs:
         run: |
           pip install --quiet "huggingface_hub"
           hf download "$HF_REPO" \
-            --include "fp16_v2/*" "tokenizer.json" "tokenizer_config.json" \
+            --include "fp16_v2/*" \
+            --include "tokenizer.json" \
+            --include "tokenizer_config.json" \
             --local-dir dl
           # Flatten into the layout the server expects (semplifica/ = 8 onnx +
           # tokenizer files, no subfolder). See CLAUDE.md "Model".
