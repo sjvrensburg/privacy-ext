@@ -1,0 +1,21 @@
+[package]
+name = "pii-desktop"
+version = "0.1.0"
+edition = "2021"
+description = "Privacy Redactor — tray app for the on-device PII redaction daemon"
+
+[lib]
+name = "pii_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+pii-server = { path = "../../server" }

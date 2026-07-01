@@ -1,0 +1,155 @@
+name: release
+
+# Builds the Privacy Redactor desktop installers (Linux .deb/.AppImage, Windows
+# NSIS .exe) with the GLiNER2 model and the ONNX runtime bundled in, so an
+# ordinary user installs one file and it just works — no model download, no
+# runtime to install.
+#
+# Code signing is NOT wired up yet (no certificate). Once an OSSign Authenticode
+# cert is available, add a signing step to the build-windows job (see the TODO).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  # Model lives in this HF repo; the 8 fp16 ONNX fragments are under fp16_v2/.
+  HF_REPO: SemplificaAI/gliner2-privacy-filter-PII-multi
+  # ONNX Runtime version compatible with ort 2.0.0-rc.9 (ORT 1.20.x ABI).
+  ORT_VERSION: "1.20.1"
+
+jobs:
+  # ---- 1. Fetch the model once, share it with the platform builds ----
+  download-model:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download model from HuggingFace
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          pip install --quiet "huggingface_hub[cli]"
+          huggingface-cli download "$HF_REPO" \
+            --include "fp16_v2/*" "tokenizer.json" "tokenizer_config.json" \
+            --local-dir dl
+          # Flatten into the layout the server expects (semplifica/ = 8 onnx +
+          # tokenizer files, no subfolder). See CLAUDE.md "Model".
+          mkdir -p semplifica
+          mv dl/fp16_v2/* semplifica/
+          cp dl/tokenizer*.json semplifica/
+          ls -lh semplifica
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: model
+          path: semplifica/
+          retention-days: 1
+
+  # ---- 2a. Linux: .deb + .AppImage ----
+  build-linux:
+    needs: download-model
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf libssl-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0" --locked
+
+      - name: Stage model resource
+        uses: actions/download-artifact@v4
+        with:
+          name: model
+          path: desktop/src-tauri/resources/semplifica
+
+      - name: Stage ONNX Runtime (.so)
+        run: |
+          url="https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+          curl -fL --retry 3 -o ort.tgz "$url"
+          tar xzf ort.tgz
+          cp onnxruntime-linux-x64-${ORT_VERSION}/lib/libonnxruntime.so \
+             desktop/src-tauri/resources/libonnxruntime.so
+
+      - name: Build installers
+        working-directory: desktop
+        run: cargo tauri build --bundles deb,appimage
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-installers
+          path: |
+            desktop/src-tauri/target/release/bundle/deb/*.deb
+            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+
+  # ---- 2b. Windows: NSIS .exe ----
+  build-windows:
+    needs: download-model
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri
+
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0" --locked
+
+      - name: Stage model resource
+        uses: actions/download-artifact@v4
+        with:
+          name: model
+          path: desktop/src-tauri/resources/semplifica
+
+      - name: Stage ONNX Runtime (.dll)
+        shell: pwsh
+        run: |
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v$env:ORT_VERSION/onnxruntime-win-x64-$env:ORT_VERSION.zip"
+          curl.exe -fL --retry 3 -o ort.zip $url
+          Expand-Archive ort.zip -DestinationPath ort
+          Copy-Item "ort/onnxruntime-win-x64-$env:ORT_VERSION/lib/onnxruntime.dll" `
+            -Destination "desktop/src-tauri/resources/onnxruntime.dll"
+
+      - name: Build installer
+        working-directory: desktop
+        run: cargo tauri build --bundles nsis
+
+      # TODO(signing): once an OSSign Authenticode certificate is available, sign
+      # the produced .exe here (e.g. with the ossign CLI / signtool) before upload.
+      # Until then the Windows installer is unsigned and SmartScreen will warn.
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: desktop/src-tauri/target/release/bundle/nsis/*.exe
+
+  # ---- 3. Attach everything to the GitHub Release ----
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**/*
+          fail_on_unmatched_files: true
