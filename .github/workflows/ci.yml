@@ -66,12 +66,6 @@ jobs:
       - name: Build server
         run: cargo build --release --manifest-path server/Cargo.toml
 
-      - name: Diagnose CPU (temporary, int8 smoke-test debugging)
-        run: |
-          lscpu
-          echo "--- relevant flags ---"
-          grep -m1 flags /proc/cpuinfo | tr ' ' '\n' | grep -E '^(avx|avx2|avx512|avx_vnni|avx512_vnni|sse4)' || true
-
       - name: Smoke test
         run: bash server/smoke-test.sh
 
