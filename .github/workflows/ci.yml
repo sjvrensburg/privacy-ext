@@ -14,7 +14,8 @@ on:
   workflow_dispatch:
 
 env:
-  HF_REPO: SemplificaAI/gliner2-privacy-filter-PII-multi
+  # See release.yml for why this points at the int8 export.
+  HF_REPO: stefanj0/gliner2-sa-names-lora
   ORT_VERSION: "1.20.1"
 
 jobs:
@@ -27,13 +28,17 @@ jobs:
         with:
           workspaces: server
 
-      # Cache the ~600 MB model so most runs skip the HF download entirely.
+      # Cache the ~400 MB model (int8 encoder) so most runs skip the HF download entirely.
       - name: Cache model
         id: model-cache
         uses: actions/cache@v4
         with:
           path: semplifica
-          key: model-${{ env.HF_REPO }}-fp16_v2-v1
+          # Bump this suffix whenever the file *content* at onnx_int8/ changes on
+          # the HF repo (the path never changes on re-upload, so the cache key
+          # must, or stale weights silently persist across cache hits — this bit
+          # us once already with the reduce_range fix, see git history).
+          key: model-${{ env.HF_REPO }}-onnx_int8-v2-reduce_range
 
       - name: Download model
         if: steps.model-cache.outputs.cache-hit != 'true'
@@ -43,7 +48,7 @@ jobs:
           pip install --quiet "huggingface_hub"
           for attempt in 1 2 3 4 5; do
             hf download "$HF_REPO" \
-              --include "fp16_v2/*" \
+              --include "onnx_int8/*" \
               --include "tokenizer.json" \
               --include "tokenizer_config.json" \
               --local-dir dl && break
@@ -51,7 +56,7 @@ jobs:
             sleep $((attempt*20))
           done
           mkdir -p semplifica
-          mv dl/fp16_v2/* semplifica/
+          mv dl/onnx_int8/* semplifica/
           find dl -name 'tokenizer*.json' -exec cp -n {} semplifica/ \;
           test -f semplifica/tokenizer.json || { echo "::error::tokenizer.json missing"; exit 1; }
 

@@ -17,8 +17,11 @@ on:
   workflow_dispatch:
 
 env:
-  # Model lives in this HF repo; the 8 fp16 ONNX fragments are under fp16_v2/.
-  HF_REPO: SemplificaAI/gliner2-privacy-filter-PII-multi
+  # Model lives in this HF repo; the 8 ONNX fragments (int8 encoder, fp16 the
+  # rest) are under onnx_int8/. Smaller + faster than the old fp16-only export
+  # (encoder 337 MB vs 556 MB, ~2x throughput) — see stefanj0/gliner2-sa-names-lora
+  # model card for the accuracy/perf tradeoff.
+  HF_REPO: stefanj0/gliner2-sa-names-lora
   # ONNX Runtime version compatible with ort 2.0.0-rc.9 (ORT 1.20.x ABI).
   ORT_VERSION: "1.20.1"
 
@@ -35,20 +38,20 @@ jobs:
           # Retry to ride out transient HF 429/5xx rate limits.
           for attempt in 1 2 3 4 5; do
             hf download "$HF_REPO" \
-              --include "fp16_v2/*" \
+              --include "onnx_int8/*" \
               --include "tokenizer.json" \
               --include "tokenizer_config.json" \
               --local-dir dl && break
             echo "hf download attempt $attempt failed; retrying in $((attempt*20))s"
             sleep $((attempt*20))
           done
-          test -d dl/fp16_v2 || { echo "::error::model download failed after retries"; exit 1; }
+          test -d dl/onnx_int8 || { echo "::error::model download failed after retries"; exit 1; }
           # Flatten into the layout the server expects (semplifica/ = 8 onnx +
           # tokenizer files, no subfolder). See CLAUDE.md "Model".
-          # tokenizer*.json may sit at the repo root or inside fp16_v2/, so
+          # tokenizer*.json may sit at the repo root or inside onnx_int8/, so
           # collect them from anywhere in the download.
           mkdir -p semplifica
-          mv dl/fp16_v2/* semplifica/
+          mv dl/onnx_int8/* semplifica/
           find dl -name 'tokenizer*.json' -exec cp -n {} semplifica/ \;
           ls -lh semplifica
           test -f semplifica/tokenizer.json || { echo "::error::tokenizer.json missing"; exit 1; }
@@ -110,6 +113,7 @@ jobs:
           path: |
             desktop/src-tauri/target/release/bundle/deb/*.deb
             desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          retention-days: 1
 
   # ---- 2b. Windows: NSIS .exe ----
   build-windows:
@@ -159,6 +163,7 @@ jobs:
         with:
           name: windows-installer
           path: desktop/src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 1
 
   # ---- 3. Attach everything to the GitHub Release ----
   release:
