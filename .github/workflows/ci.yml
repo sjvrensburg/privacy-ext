@@ -34,7 +34,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: semplifica
-          key: model-${{ env.HF_REPO }}-onnx_int8-v1
+          # Bump this suffix whenever the file *content* at onnx_int8/ changes on
+          # the HF repo (the path never changes on re-upload, so the cache key
+          # must, or stale weights silently persist across cache hits — this bit
+          # us once already with the reduce_range fix, see git history).
+          key: model-${{ env.HF_REPO }}-onnx_int8-v2-reduce_range
 
       - name: Download model
         if: steps.model-cache.outputs.cache-hit != 'true'
