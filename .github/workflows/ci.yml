@@ -105,3 +105,33 @@ jobs:
       - name: cargo check (desktop)
         working-directory: desktop/src-tauri
         run: cargo check
+
+  # ---- Prune stale caches ----
+  # This repo's Actions storage quota (0.5 GB, free plan) covers artifacts
+  # AND caches combined. Swatinem/rust-cache mints a new cache per
+  # Cargo.lock/toolchain hash and GitHub's own eviction (default 10 GB cap)
+  # never kicks in at our much smaller quota, so caches silently pile up
+  # (hit 6 GB / 13 caches once, which blocked release-build artifact
+  # uploads for over a day even after the run that caused it was long
+  # gone). Keep only the newest cache per key prefix (the part before the
+  # trailing content-hash suffix) after every push to main.
+  cleanup-caches:
+    if: github.ref == 'refs/heads/main'
+    needs: [server-smoke, desktop-check]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Prune old caches, keep newest per key prefix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/${{ github.repository }}/actions/caches?per_page=100" \
+            --paginate --jq '.actions_caches[] | [.id, .key, .created_at] | @tsv' \
+          | awk -F'\t' '{ prefix = $2; sub(/-[0-9a-f]+-[0-9a-f]+$/, "", prefix); print prefix "\t" $0 }' \
+          | sort -t$'\t' -k1,1 -k4,4r \
+          | awk -F'\t' '{ if ($1 == prev) print $2; prev = $1 }' \
+          | while read -r id; do
+              echo "deleting stale cache id=$id"
+              gh api -X DELETE "repos/${{ github.repository }}/actions/caches/$id" || true
+            done
