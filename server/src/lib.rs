@@ -62,8 +62,8 @@ impl Default for ServerConfig {
         ServerConfig {
             port: DEFAULT_PORT,
             model: ModelSource::HuggingFace {
-                repo: "SemplificaAI/gliner2-privacy-filter-PII-multi".to_string(),
-                subfolder: "fp16_v2".to_string(),
+                repo: "stefanj0/gliner2-sa-names-lora".to_string(),
+                subfolder: "onnx_int8".to_string(),
             },
             allowed_origins: vec![DEFAULT_EXTENSION_ORIGIN.to_string()],
         }

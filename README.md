@@ -23,7 +23,7 @@ PII_TOKEN=<your-secret> ./run.sh
 
 Env vars:
 - `ORT_DYLIB_PATH` — path to `libonnxruntime.so` (run.sh auto-detects).
-- `PII_MODELS_DIR` — local dir of the 8 fp16 ONNX fragments + `tokenizer.json` (skips the ~620 MB HF download). Otherwise the model is fetched from `SemplificaAI/gliner2-privacy-filter-PII-multi` (`fp16_v2`) into the HF cache on first run.
+- `PII_MODELS_DIR` — local dir of the 8 ONNX fragments + `tokenizer.json` (skips the HF download). Otherwise the model is fetched from `stefanj0/gliner2-sa-names-lora` (`onnx_int8`) into the HF cache on first run.
 - `PII_TOKEN` — bearer token the extension must send (recommended; otherwise the endpoint is open on loopback).
 - `PII_PORT` (8731), `PII_LABELS` (comma list), `PII_MODEL_REPO`, `PII_SUBFOLDER`.
 

@@ -22,8 +22,8 @@ fn main() -> anyhow::Result<()> {
         ModelSource::LocalDir(dir)
     } else {
         let repo = std::env::var("PII_MODEL_REPO")
-            .unwrap_or_else(|_| "SemplificaAI/gliner2-privacy-filter-PII-multi".to_string());
-        let subfolder = std::env::var("PII_SUBFOLDER").unwrap_or_else(|_| "fp16_v2".to_string());
+            .unwrap_or_else(|_| "stefanj0/gliner2-sa-names-lora".to_string());
+        let subfolder = std::env::var("PII_SUBFOLDER").unwrap_or_else(|_| "onnx_int8".to_string());
         ModelSource::HuggingFace { repo, subfolder }
     };
 

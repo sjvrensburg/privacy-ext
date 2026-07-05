@@ -11,6 +11,12 @@ node_modules/
 *.onnx.data
 *.gguf
 /semplifica/
+/semplifica_baseline_backup/
+/semplifica_finetuned/
 
 # Caches / scratch
 .cache/
+
+# Experiment scratch (not part of the shipped daemon/extension)
+/server/eval/
+/server/onnx_conversion_scripts/
