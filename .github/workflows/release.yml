@@ -1,6 +1,6 @@
 name: release
 
-# Builds the Privacy Redactor desktop installers (Linux .deb/.AppImage, Windows
+# Builds the Privacy Redactor desktop installers (Linux .AppImage, Windows
 # NSIS .exe) with the GLiNER2 model and the ONNX runtime bundled in, so an
 # ordinary user installs one file and it just works — no model download, no
 # runtime to install.
@@ -64,7 +64,7 @@ jobs:
           path: semplifica/
           retention-days: 1
 
-  # ---- 2a. Linux: .deb + .AppImage ----
+  # ---- 2a. Linux: .AppImage ----
   build-linux:
     needs: download-model
     runs-on: ubuntu-22.04
@@ -102,17 +102,15 @@ jobs:
       - name: Build native-messaging sidecar
         run: bash desktop/src-tauri/scripts/prepare-sidecar.sh
 
-      - name: Build installers
+      - name: Build installer
         working-directory: desktop
-        run: cargo tauri build --bundles deb,appimage
+        run: cargo tauri build --bundles appimage
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-installers
-          path: |
-            desktop/src-tauri/target/release/bundle/deb/*.deb
-            desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          path: desktop/src-tauri/target/release/bundle/appimage/*.AppImage
           retention-days: 1
 
   # ---- 2b. Windows: NSIS .exe ----
