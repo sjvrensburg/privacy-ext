@@ -4,7 +4,7 @@
   "version": "0.2.2",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxJbO32GNtssmTxoNCHmbLiKu52Kw6wr/kHxQO047E9ojsY31ea1CN7kOetV14ZALsOXXVQ3GBwzja2ktmm8R3+xSwSZadcQMCInIMwh0E+y+xnuqNF6taYWdj8s/Z7rHkpnxAD8V1ywXjbHShMAxcS2ol2UAkeJuW8K3x8Le/wgx5CXghfCz41JBWRE3rg0eTxOQqKzrhF8jstvxaImLwn1rxlHoEdY1H2hTFM6ml/EByxiDd/7hInl5yJoDB8rNhwv20Z6hT69+f2ppq3TRoPPICrl5h0FcGhPkr/N9XyV25hGVl6P9ILgfx1Rn7X574kBAJsZczDPBlI6BKEChrwIDAQAB",
   "description": "Detects and redacts PII pasted into web forms via a local on-device model daemon.",
-  "permissions": ["storage", "nativeMessaging"],
+  "permissions": ["storage", "nativeMessaging", "activeTab"],
   "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "PII Redactor" },

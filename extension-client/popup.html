@@ -1,28 +1,63 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><style>
-  body { font: 13px/1.5 system-ui, sans-serif; width: 300px; padding: 12px; margin: 0; }
-  h1 { font-size: 14px; margin: 0 0 8px; }
-  label { display: block; margin: 8px 0 2px; font-weight: 600; }
-  input[type=text] { width: 100%; box-sizing: border-box; }
-  .row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
-  #status { margin-top: 8px; }
-  .ok { color: #137333; } .err { color: #b00020; }
-  button { font: inherit; padding: 4px 10px; }
-  .chip { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 6px; background: #f1f3f4; }
-  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: #9aa0a6; transition: background-color .2s; }
-  .dot.connected { background: #1e8e3e; }
-  .dot.disconnected { background: #d93025; }
-  .dot.checking { background: #f9ab00; }
-  #chipText { flex: 1; }
-  #repair { padding: 2px 8px; font-size: 12px; }
-</style></head>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="popup.css" />
+</head>
 <body>
-  <h1>PII Redactor</h1>
-  <div class="chip"><span id="chipDot" class="dot checking"></span><span id="chipText">Checking…</span><button id="repair" title="Re-pair with the daemon">Re-pair</button></div>
-  <div class="row"><input type="checkbox" id="enabled"><label for="enabled" style="margin:0">Enabled</label></div>
-  <label for="threshold">Detection threshold</label>
-  <input type="text" id="threshold" placeholder="0.55">
-  <div class="row"><button id="save">Save</button><button id="test">Test connection</button></div>
-  <div id="status"></div>
+  <header>
+    <div class="logo">🛡️</div>
+    <div>
+      <h1>PII Redactor</h1>
+      <div class="sub">On-device paste redaction</div>
+    </div>
+    <span id="chipDot" class="dot checking" title="Daemon status"></span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>This site</h2>
+      <div class="hostname" id="hostname">—</div>
+      <label class="chip" id="originChip" style="margin-top:8px">
+        <input type="checkbox" id="originToggle" />
+        <span id="originChipText">Redact on this site</span>
+      </label>
+    </section>
+
+    <section class="card row">
+      <input type="checkbox" id="enabled" />
+      <label for="enabled" class="checkbox-label">Enabled (master switch)</label>
+    </section>
+
+    <section class="card">
+      <h2>Connection</h2>
+      <div class="status-row">
+        <span id="chipText">Checking…</span>
+        <button id="repair" class="ghost small" type="button">Re-pair</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Detection</h2>
+      <label for="threshold">Threshold <span id="threshVal" class="mono"></span></label>
+      <input type="range" id="threshold" min="0.30" max="0.90" step="0.01" />
+      <p class="hint">Higher = fewer false positives, may miss some PII. ~0.55 is a good default.</p>
+    </section>
+
+    <section class="card">
+      <h2>Auto-active sites</h2>
+      <div id="siteList" class="labels"></div>
+      <div class="hint">Sites redaction is on for by default. Toggle any site, including this one, above.</div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="status" class="save-state"></span>
+    <button id="test" class="ghost" type="button">Test connection</button>
+    <button id="save" type="button">Save</button>
+  </footer>
+
+  <script src="ai-sites.js"></script>
   <script src="popup.js"></script>
-</body></html>
+</body>
+</html>

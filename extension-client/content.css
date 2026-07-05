@@ -1,24 +1,39 @@
-.pf-prompt {
+/* Palette duplicated from desktop/src/styles.css :root — this stylesheet is
+   injected into arbitrary pages, so it can't rely on the extension's own
+   CSS variables being loaded; keep these literals in sync by hand if the
+   tray app palette changes. */
+.pf-toast {
   position: absolute;
   z-index: 2147483647;
-  background: #1f2430;
-  color: #e6e6e6;
+  background: #1e293b;
+  color: #e2e8f0;
   font: 13px/1.4 -apple-system, system-ui, sans-serif;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.15);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   display: flex;
   gap: 8px;
   align-items: center;
   max-width: 480px;
 }
-.pf-prompt .pf-msg { margin-right: 4px; }
-.pf-prompt button {
+.pf-toast .pf-msg { margin-right: 4px; }
+.pf-toast button {
   font: inherit;
   border: 0;
-  border-radius: 6px;
-  padding: 4px 8px;
+  border-radius: 8px;
+  padding: 4px 10px;
   cursor: pointer;
 }
-.pf-prompt .pf-redact { background: #3ddc84; color: #04210f; font-weight: 600; }
-.pf-prompt .pf-orig { background: #3a4150; color: #e6e6e6; }
+.pf-toast .pf-undo {
+  background: linear-gradient(180deg, #4f8cff, #2451c9);
+  color: #fff;
+  font-weight: 600;
+}
+.pf-toast .pf-dismiss {
+  background: #273449;
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 4px 8px;
+  line-height: 1;
+}

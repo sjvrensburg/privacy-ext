@@ -8,6 +8,8 @@
 // cached in storage.local and reused until a request comes back 401 (token
 // rotated) or the popup asks us to re-pair.
 
+importScripts("ai-sites.js");
+
 const NATIVE_HOST = "ai.semplifica.privacy_redactor";
 
 function sendNativeMessage(message, timeoutMs = 3000) {
@@ -108,5 +110,44 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .then((p) => sendResponse({ ok: true, ...p }))
       .catch((e) => sendResponse({ ok: false, error: String(e?.message || e) }));
     return true;
+  }
+  if (msg?.type === "PF_TAB_STATE") {
+    // Sent by the content script once it resolves whether redaction is active
+    // for this origin, so the toolbar badge reflects per-tab state without
+    // needing the "tabs" permission (sender.tab is available on messages
+    // from content scripts regardless of that permission).
+    const tabId = sender.tab?.id;
+    if (tabId != null) {
+      // Explicit ON/OFF (not blank) so the state is unambiguous without
+      // opening the popup — a blank badge could otherwise be misread as
+      // "not loaded yet" rather than "redaction is off for this site".
+      chrome.action.setBadgeText({ tabId, text: msg.active ? "ON" : "OFF" });
+      chrome.action.setBadgeBackgroundColor({ tabId, color: msg.active ? "#22c55e" : "#94a3b8" });
+      chrome.action.setTitle({
+        tabId,
+        title: msg.active ? "PII Redactor — active on this site" : "PII Redactor — inactive on this site",
+      });
+    }
+    return false;
+  }
+});
+
+// Seed the curated AI-site list on first install, and merge in any newly
+// added curated sites on update without clobbering the user's own toggles.
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === "install") {
+    const originSettings = Object.fromEntries(DEFAULT_AI_SITES.map((h) => [h, { active: true }]));
+    await chrome.storage.local.set({
+      originSettings,
+      defaultOriginActive: false,
+      seedVersion: AI_SITES_SEED_VERSION,
+    });
+  } else if (details.reason === "update") {
+    const { originSettings = {}, seedVersion = 0 } = await chrome.storage.local.get(["originSettings", "seedVersion"]);
+    if (seedVersion < AI_SITES_SEED_VERSION) {
+      const merged = { ...originSettings };
+      for (const h of DEFAULT_AI_SITES) if (!(h in merged)) merged[h] = { active: true };
+      await chrome.storage.local.set({ originSettings: merged, seedVersion: AI_SITES_SEED_VERSION });
+    }
   }
 });
