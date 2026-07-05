@@ -3,6 +3,7 @@ name = "pii-desktop"
 version = "0.2.2"
 edition = "2021"
 description = "Privacy Redactor — tray app for the on-device PII redaction daemon"
+license = "MIT"
 
 [lib]
 name = "pii_desktop_lib"
