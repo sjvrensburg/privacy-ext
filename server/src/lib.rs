@@ -37,7 +37,17 @@ pub const DEFAULT_LABELS: &[&str] = &[
 // extension's background fetch sends `Origin: chrome-extension://<id>`; we echo
 // it back only when it matches, so other local processes / web origins can't use
 // the daemon even though it's reachable on localhost.
+pub const DEFAULT_EXTENSION_ID: &str = "ihjamhkkcgbifajnbikldcjfamggnbaj";
 pub const DEFAULT_EXTENSION_ORIGIN: &str = "chrome-extension://ihjamhkkcgbifajnbikldcjfamggnbaj";
+
+/// Build a `chrome-extension://<id>` origin from a raw extension id. Used by the
+/// desktop app to derive both the daemon's CORS allow-list and the native-host
+/// `allowed_origins` from a single configurable id list — so if the Chrome Web
+/// Store assigns an id that differs from the pinned one, adding it is a config
+/// edit, not a recompile. See `chrome_extension_ids` in the desktop AppConfig.
+pub fn chrome_extension_origin(id: &str) -> String {
+    format!("chrome-extension://{id}")
+}
 
 pub const DEFAULT_PORT: u16 = 8731;
 pub const DEFAULT_THRESHOLD: f32 = 0.55;

@@ -40,6 +40,18 @@ struct AppConfig {
     enabled_labels: Vec<String>,
     /// Launch on login.
     autostart: bool,
+    /// Chrome/Chromium/Edge extension ids authorised to pair via native
+    /// messaging AND pass the daemon's CORS check. Defaults to the pinned Web
+    /// Store id. If the Chrome Web Store assigns a different id at publish time,
+    /// add it here (or replace the pin) — no rebuild needed, since both the
+    /// native-host manifest and the server's allow-list are derived from this
+    /// list. Firefox is authorised separately, by gecko id, in the native host.
+    #[serde(default = "default_chrome_extension_ids")]
+    chrome_extension_ids: Vec<String>,
+}
+
+fn default_chrome_extension_ids() -> Vec<String> {
+    vec![pii_server::DEFAULT_EXTENSION_ID.to_string()]
 }
 
 impl Default for AppConfig {
@@ -50,11 +62,21 @@ impl Default for AppConfig {
             threshold: DEFAULT_THRESHOLD,
             enabled_labels: DEFAULT_LABELS.iter().map(|s| s.to_string()).collect(),
             autostart: false,
+            chrome_extension_ids: default_chrome_extension_ids(),
         }
     }
 }
 
 impl AppConfig {
+    /// The `chrome-extension://<id>` origins this config authorises (no trailing
+    /// slash — matches the `Origin` header the daemon compares against).
+    fn chrome_extension_origins(&self) -> Vec<String> {
+        self.chrome_extension_ids
+            .iter()
+            .map(|id| pii_server::chrome_extension_origin(id))
+            .collect()
+    }
+
     fn to_live(&self) -> LiveSettings {
         LiveSettings {
             token: if self.token.trim().is_empty() { None } else { Some(self.token.clone()) },
@@ -107,7 +129,7 @@ const FIREFOX_EXTENSION_ID: &str = "pii-redactor@semplifica.ai";
 /// can pair with zero manual config. Best-effort: a failure here just means
 /// the extension falls back to showing "not paired" until the tray app has
 /// run once with the sidecar present.
-fn install_native_messaging_host(_app: &AppHandle) {
+fn install_native_messaging_host(_app: &AppHandle, chrome_extension_ids: &[String]) {
     let host_binary_name = if cfg!(windows) { "pii-native-host.exe" } else { "pii-native-host" };
     let exe_dir = match std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.to_path_buf())) {
         Some(d) => d,
@@ -121,13 +143,18 @@ fn install_native_messaging_host(_app: &AppHandle) {
 
     // Chrome/Chromium/Edge authorise the host by the extension's origin;
     // Firefox authorises it by the extension id. Otherwise the two manifests
-    // are identical.
+    // are identical. Chrome requires an exact `chrome-extension://<id>/` (with
+    // trailing slash) per entry — no wildcards — so we list every configured id.
+    let allowed_origins: Vec<String> = chrome_extension_ids
+        .iter()
+        .map(|id| format!("chrome-extension://{id}/"))
+        .collect();
     let manifest = serde_json::json!({
         "name": NATIVE_HOST_NAME,
         "description": "Privacy Redactor pairing host",
         "path": host_path.to_string_lossy(),
         "type": "stdio",
-        "allowed_origins": [format!("{}/", pii_server::DEFAULT_EXTENSION_ORIGIN)],
+        "allowed_origins": allowed_origins,
     });
     let firefox_manifest = serde_json::json!({
         "name": NATIVE_HOST_NAME,
@@ -262,13 +289,13 @@ fn ensure_ort_dylib(app: &AppHandle) {
     }
 }
 
-fn start_server_thread(app: &AppHandle, shared: &Shared) {
+fn start_server_thread(app: &AppHandle, shared: &Shared, allowed_origins: Vec<String>) {
     let model = resolve_model_source(app);
     let port = shared.bound_port;
     let live = shared.live.clone();
     let ready = shared.ready.clone();
 
-    let config = ServerConfig { port, model, ..ServerConfig::default() };
+    let config = ServerConfig { port, model, allowed_origins };
 
     std::thread::spawn(move || {
         if let Err(e) = init_ort() {
@@ -311,7 +338,12 @@ fn get_config(state: State<Shared>) -> ConfigView {
 }
 
 #[tauri::command]
-fn save_config(app: AppHandle, state: State<Shared>, config: AppConfig) -> Result<ConfigView, String> {
+fn save_config(app: AppHandle, state: State<Shared>, mut config: AppConfig) -> Result<ConfigView, String> {
+    // `chrome_extension_ids` is a config-file-only escape hatch (no UI control),
+    // so the settings window never sends it back. Preserve the stored value so a
+    // Save can't silently reset an operator's manually-added Chrome id.
+    config.chrome_extension_ids = state.config.lock().unwrap().chrome_extension_ids.clone();
+
     // Apply live-tunable settings immediately.
     {
         let mut live = state.live.write().unwrap();
@@ -355,7 +387,6 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             ensure_ort_dylib(&handle);
-            install_native_messaging_host(&handle);
 
             let config_path = app
                 .path()
@@ -363,6 +394,10 @@ pub fn run() {
                 .map(|d| d.join("config.json"))
                 .unwrap_or_else(|_| PathBuf::from("config.json"));
             let cfg = load_or_init_config(&config_path);
+
+            // Register the native host AFTER loading config so its allow-list
+            // reflects any operator-added Chrome ids (see chrome_extension_ids).
+            install_native_messaging_host(&handle, &cfg.chrome_extension_ids);
 
             let shared = Shared {
                 live: new_live_state(cfg.to_live()),
@@ -376,7 +411,7 @@ pub fn run() {
             let autolaunch = app.autolaunch();
             let _ = if cfg.autostart { autolaunch.enable() } else { autolaunch.disable() };
 
-            start_server_thread(&handle, &shared);
+            start_server_thread(&handle, &shared, cfg.chrome_extension_origins());
             app.manage(shared);
 
             // Tray icon + menu.
