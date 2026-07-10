@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PII Redactor (local daemon client)",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Detects and redacts PII pasted into web forms via a local on-device model daemon.",
   "browser_specific_settings": {
     "gecko": {
