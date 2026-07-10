@@ -135,8 +135,19 @@ fn cors_headers(allow_origin: Option<&str>) -> Vec<Header> {
     headers
 }
 
+// An allowed entry ending in `*` is a prefix wildcard. This exists mainly for
+// Firefox: its extension origin is `moz-extension://<uuid>` where the uuid is
+// randomised per install and so can't be pinned at build time the way the
+// Chrome id is. A user running the Firefox build can set
+// `PII_ALLOWED_ORIGINS=moz-extension://*` (the bearer token remains the real
+// access control). Chrome's exact origin still matches via the `a == o` arm.
 fn resolve_origin<'a>(origin: Option<&'a str>, allowed: &[String]) -> Option<&'a str> {
-    origin.filter(|o| allowed.iter().any(|a| a == o))
+    origin.filter(|o| {
+        allowed.iter().any(|a| match a.strip_suffix('*') {
+            Some(prefix) => o.starts_with(prefix),
+            None => a == o,
+        })
+    })
 }
 
 fn json_response(

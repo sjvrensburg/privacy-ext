@@ -23,6 +23,13 @@ content.js (paste hook) ─▶ background.js ─fetch─▶ 127.0.0.1:8731  (pii
   `src/main.rs` is the whole server; `run.sh` launches it.
 - `extension-client/` — the MV3 thin client (manifest, background fetch,
   content-script paste hook + redaction UI, popup settings). No model code.
+- `extension-firefox/` — the Gecko MV3 port. Shares every file with
+  `extension-client/` except `manifest.json`; `scripts/sync-firefox.sh` mirrors
+  the rest.
+  `background.js` is cross-browser (it guards the worker-only `importScripts`).
+- `assets/icon/` — icon masters (`master-color.png` / `master-light.png`, made
+  with Nano Banana 2). `scripts/render-icons.sh` derives every shipped PNG/ICO
+  (extension toolbar on/off, desktop tray, light-mode tile) from them.
 - `semplifica/` — local copy of the 8 fp16 ONNX fragments + `tokenizer.json`
   (gitignored; used via `PII_MODELS_DIR` to skip the HF download).
 
@@ -69,3 +76,10 @@ extension's ID is fixed by the `key` in `extension-client/manifest.json`
 `server/src/main.rs`). Override with `PII_ALLOWED_ORIGINS` (comma-separated) for
 a differently-keyed build. The signing key for the pinned ID lives in
 `extension-client/.keys/` (gitignored) — needed only to re-pack/publish.
+
+Firefox's extension origin (`moz-extension://<uuid>`) is randomised per install
+and can't be pinned, so the Firefox build authorises native messaging by
+extension id (`allowed_extensions` in the host manifest) and, if a CORS error
+appears, is run against a daemon started with `PII_ALLOWED_ORIGINS=moz-extension://*`
+(`resolve_origin` in `server/src/lib.rs` supports a trailing-`*` wildcard). The
+bearer token stays the real access control.

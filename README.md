@@ -29,9 +29,16 @@ Env vars:
 
 API: `GET /health` · `POST /classify {text, threshold?}` → `{entities:[{label,text,start,end,score}], redacted}`.
 
-## 2. Load the extension (`extension-client/`)
+## 2. Load the extension
 
-`chrome://extensions` → Developer mode → **Load unpacked** → `extension-client/`.
+**Chrome / Edge** (`extension-client/`): `chrome://extensions` → Developer mode
+→ **Load unpacked** → `extension-client/`.
+
+**Firefox** (`extension-firefox/`): `about:debugging#/runtime/this-firefox` →
+**Load Temporary Add-on…** → `extension-firefox/manifest.json`. The Firefox
+build shares all its code with the Chrome client (kept in sync by
+`scripts/sync-firefox.sh`); see `extension-firefox/README.md` for the native
+messaging + CORS notes.
 
 Pairing is zero-config when the **desktop tray app** (`desktop/`) is running: it
 persists its port + token and registers a Chrome Native Messaging host

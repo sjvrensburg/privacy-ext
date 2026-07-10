@@ -97,6 +97,12 @@ fn generate_token() -> String {
 /// `allowed_origins` must match `DEFAULT_EXTENSION_ORIGIN`.
 const NATIVE_HOST_NAME: &str = "ai.semplifica.privacy_redactor";
 
+/// Gecko extension id the Firefox build pins (see
+/// `extension-firefox/manifest.json`). Firefox's native-messaging manifest
+/// authorises callers by extension id (`allowed_extensions`) rather than by the
+/// `chrome-extension://` origin Chrome uses.
+const FIREFOX_EXTENSION_ID: &str = "pii-redactor@semplifica.ai";
+
 /// Registers the `pii-native-host` sidecar with the browser so the extension
 /// can pair with zero manual config. Best-effort: a failure here just means
 /// the extension falls back to showing "not paired" until the tray app has
@@ -113,6 +119,9 @@ fn install_native_messaging_host(_app: &AppHandle) {
         return;
     }
 
+    // Chrome/Chromium/Edge authorise the host by the extension's origin;
+    // Firefox authorises it by the extension id. Otherwise the two manifests
+    // are identical.
     let manifest = serde_json::json!({
         "name": NATIVE_HOST_NAME,
         "description": "Privacy Redactor pairing host",
@@ -120,7 +129,18 @@ fn install_native_messaging_host(_app: &AppHandle) {
         "type": "stdio",
         "allowed_origins": [format!("{}/", pii_server::DEFAULT_EXTENSION_ORIGIN)],
     });
+    let firefox_manifest = serde_json::json!({
+        "name": NATIVE_HOST_NAME,
+        "description": "Privacy Redactor pairing host",
+        "path": host_path.to_string_lossy(),
+        "type": "stdio",
+        "allowed_extensions": [FIREFOX_EXTENSION_ID],
+    });
     let manifest_str = match serde_json::to_string_pretty(&manifest) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let firefox_manifest_str = match serde_json::to_string_pretty(&firefox_manifest) {
         Ok(s) => s,
         Err(_) => return,
     };
@@ -135,17 +155,25 @@ fn install_native_messaging_host(_app: &AppHandle) {
                 }
             }
         }
+        // Firefox looks under ~/.mozilla, not the XDG config dir.
+        if let Some(home) = dirs::home_dir() {
+            let dir = home.join(".mozilla").join("native-messaging-hosts");
+            if std::fs::create_dir_all(&dir).is_ok() {
+                let _ = std::fs::write(dir.join(format!("{NATIVE_HOST_NAME}.json")), &firefox_manifest_str);
+            }
+        }
     }
 
     #[cfg(target_os = "windows")]
     {
         if let Ok(config_dir) = _app.path().app_config_dir() {
             let _ = std::fs::create_dir_all(&config_dir);
+            use winreg::enums::HKEY_CURRENT_USER;
+            use winreg::RegKey;
+            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+
             let manifest_path = config_dir.join(format!("{NATIVE_HOST_NAME}.json"));
             if std::fs::write(&manifest_path, &manifest_str).is_ok() {
-                use winreg::enums::HKEY_CURRENT_USER;
-                use winreg::RegKey;
-                let hkcu = RegKey::predef(HKEY_CURRENT_USER);
                 for browser_key in [
                     format!("Software\\Google\\Chrome\\NativeMessagingHosts\\{NATIVE_HOST_NAME}"),
                     format!("Software\\Microsoft\\Edge\\NativeMessagingHosts\\{NATIVE_HOST_NAME}"),
@@ -153,6 +181,16 @@ fn install_native_messaging_host(_app: &AppHandle) {
                     if let Ok((key, _)) = hkcu.create_subkey(&browser_key) {
                         let _ = key.set_value("", &manifest_path.to_string_lossy().to_string());
                     }
+                }
+            }
+
+            // Firefox uses a separate manifest (allowed_extensions) and its own
+            // registry hive.
+            let firefox_path = config_dir.join(format!("{NATIVE_HOST_NAME}.firefox.json"));
+            if std::fs::write(&firefox_path, &firefox_manifest_str).is_ok() {
+                let key_path = format!("Software\\Mozilla\\NativeMessagingHosts\\{NATIVE_HOST_NAME}");
+                if let Ok((key, _)) = hkcu.create_subkey(&key_path) {
+                    let _ = key.set_value("", &firefox_path.to_string_lossy().to_string());
                 }
             }
         }
