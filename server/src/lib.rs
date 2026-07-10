@@ -15,7 +15,8 @@
 //     retune detection on the fly; every request reads the current values.
 
 use gliner2_inference::{
-    mask_pii_text, Gliner2Config, Gliner2Engine, InferenceParams, ModelType, SchemaTask,
+    mask_pii_text, ExtractedEntity, Gliner2Config, Gliner2Engine, InferenceParams, ModelType,
+    SchemaTask,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -117,6 +118,70 @@ struct Ent {
 struct ClassifyResp {
     entities: Vec<Ent>,
     redacted: String,
+    // How many overlapping windows the text was scanned in (1 for short text).
+    // Lets the client tell the user a large paste was chunked.
+    parts: usize,
+}
+
+// Model inference is ~O(n²) in input length, so long text is scanned in
+// overlapping windows rather than one slow pass. The overlap must exceed the
+// longest single entity so nothing detected straddles a boundary and is lost.
+const WINDOW_BYTES: usize = 1500;
+const OVERLAP_BYTES: usize = 300;
+// Hard ceiling: refuse absurdly large bodies (the extension caps well below
+// this) so a single request can't monopolise the serialized daemon for
+// minutes. ~26 windows at the step size above.
+const MAX_TEXT_BYTES: usize = 40_000;
+
+// Byte ranges of overlapping windows covering `text`, each starting on a char
+// boundary. Returns a single (0, text) window when the text fits in one pass.
+fn windows(text: &str) -> Vec<(usize, &str)> {
+    let n = text.len();
+    if n <= WINDOW_BYTES {
+        return vec![(0, text)];
+    }
+    let step = WINDOW_BYTES - OVERLAP_BYTES;
+    let bump = |mut i: usize| {
+        while i < n && !text.is_char_boundary(i) {
+            i += 1;
+        }
+        i
+    };
+    let mut out = Vec::new();
+    let mut start = 0;
+    loop {
+        let end = bump((start + WINDOW_BYTES).min(n));
+        out.push((start, &text[start..end]));
+        if end >= n {
+            break;
+        }
+        start = bump(start + step);
+    }
+    out
+}
+
+// Collapse entities pooled from overlapping windows into a non-overlapping set,
+// mirroring mask_pii_text's own selection (highest score, then longest span,
+// then earliest) so the reported list and the redacted string agree exactly.
+fn dedup_entities(mut ents: Vec<ExtractedEntity>) -> Vec<ExtractedEntity> {
+    ents.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then((b.end_char - b.start_char).cmp(&(a.end_char - a.start_char)))
+            .then(a.start_char.cmp(&b.start_char))
+    });
+    let mut selected: Vec<ExtractedEntity> = Vec::new();
+    for e in ents {
+        let overlaps = selected
+            .iter()
+            .any(|s| !(e.end_char <= s.start_char || e.start_char >= s.end_char));
+        if !overlaps {
+            selected.push(e);
+        }
+    }
+    selected.sort_by_key(|e| e.start_char);
+    selected
 }
 
 fn header(k: &str, v: &str) -> Header {
@@ -135,8 +200,19 @@ fn cors_headers(allow_origin: Option<&str>) -> Vec<Header> {
     headers
 }
 
+// An allowed entry ending in `*` is a prefix wildcard. This exists mainly for
+// Firefox: its extension origin is `moz-extension://<uuid>` where the uuid is
+// randomised per install and so can't be pinned at build time the way the
+// Chrome id is. A user running the Firefox build can set
+// `PII_ALLOWED_ORIGINS=moz-extension://*` (the bearer token remains the real
+// access control). Chrome's exact origin still matches via the `a == o` arm.
 fn resolve_origin<'a>(origin: Option<&'a str>, allowed: &[String]) -> Option<&'a str> {
-    origin.filter(|o| allowed.iter().any(|a| a == o))
+    origin.filter(|o| {
+        allowed.iter().any(|a| match a.strip_suffix('*') {
+            Some(prefix) => o.starts_with(prefix),
+            None => a == o,
+        })
+    })
 }
 
 fn json_response(
@@ -292,23 +368,43 @@ impl Server {
             }
         };
 
+        if req.text.len() > MAX_TEXT_BYTES {
+            let _ = request.respond(json_response(413, "{\"error\":\"text too large\"}", allow_origin));
+            return;
+        }
+
         let threshold = req.threshold.unwrap_or(default_threshold);
         let tasks = vec![SchemaTask::Entities(labels)];
-        let params = InferenceParams { threshold, flat_ner: true };
-        let resp_body = match engine.extract(&req.text, &tasks, Some(params)) {
-            Ok((ents, _rel, _cls)) => {
-                let redacted = mask_pii_text(&req.text, &ents);
-                let entities: Vec<Ent> = ents
-                    .into_iter()
-                    .map(|e| Ent { label: e.label, text: e.text, start: e.start_char, end: e.end_char, score: e.score })
-                    .collect();
-                serde_json::to_string(&ClassifyResp { entities, redacted }).unwrap()
+
+        // Scan each window, shifting per-window offsets back to global ones, then
+        // pool and mask once over the original text so overlaps resolve uniformly.
+        let wins = windows(&req.text);
+        let parts = wins.len();
+        let mut pooled: Vec<ExtractedEntity> = Vec::new();
+        for (offset, window) in wins {
+            let params = InferenceParams { threshold, flat_ner: true };
+            match engine.extract(window, &tasks, Some(params)) {
+                Ok((ents, _rel, _cls)) => {
+                    for mut e in ents {
+                        e.start_char += offset;
+                        e.end_char += offset;
+                        pooled.push(e);
+                    }
+                }
+                Err(e) => {
+                    let _ = request.respond(json_response(500, &format!("{{\"error\":\"infer: {e}\"}}"), allow_origin));
+                    return;
+                }
             }
-            Err(e) => {
-                let _ = request.respond(json_response(500, &format!("{{\"error\":\"infer: {e}\"}}"), allow_origin));
-                return;
-            }
-        };
+        }
+
+        let selected = dedup_entities(pooled);
+        let redacted = mask_pii_text(&req.text, &selected);
+        let entities: Vec<Ent> = selected
+            .into_iter()
+            .map(|e| Ent { label: e.label, text: e.text, start: e.start_char, end: e.end_char, score: e.score })
+            .collect();
+        let resp_body = serde_json::to_string(&ClassifyResp { entities, redacted, parts }).unwrap();
         let _ = request.respond(json_response(200, &resp_body, allow_origin));
     }
 }
