@@ -1,6 +1,6 @@
 [package]
 name = "clipcloak-desktop"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2021"
 description = "ClipCloak — tray app for the on-device PII redaction daemon"
 license = "MIT"
