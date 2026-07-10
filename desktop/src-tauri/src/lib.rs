@@ -18,9 +18,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use clipcloak_server::{
-    init_ort, load_engine, new_live_state, test_rules_preview, CompiledRule, LiveSettings,
-    LiveState, ModelSource, RuleHit, Server, ServerConfig, DEFAULT_LABELS, DEFAULT_PORT,
-    DEFAULT_THRESHOLD,
+    compile_rules, init_ort, load_engine, new_live_state, test_rules_preview, CompiledRule,
+    LiveSettings, LiveState, ModelSource, RuleCompileError, RuleHit, Server, ServerConfig,
+    DEFAULT_LABELS, DEFAULT_PORT, DEFAULT_THRESHOLD,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -103,11 +103,10 @@ impl AppConfig {
     /// a bad pattern in a stored config must not abort the launch — `save_config`
     /// is where invalid patterns are rejected before they can be persisted.
     fn compiled_rules(&self) -> Vec<CompiledRule> {
-        self.rules
-            .iter()
-            .filter(|r| r.enabled && !r.name.trim().is_empty() && !r.pattern.is_empty())
-            .filter_map(|r| CompiledRule::new(r.name.trim(), &r.pattern).ok())
-            .collect()
+        // Shared with the headless daemon and the test-filters preview via
+        // `compile_rules` so the three can't drift; here we discard the errors
+        // (save_config validates first, so a stored bad pattern is rare).
+        compile_rules(self.rules.iter().map(|r| (r.name.as_str(), r.pattern.as_str(), r.enabled))).0
     }
 
     fn to_live(&self) -> LiveSettings {
@@ -434,39 +433,24 @@ fn get_status(state: State<Shared>) -> serde_json::Value {
 }
 
 /// What the "test filters" panel gets back: the regex-only redaction of the
-/// sample, the individual matches (to highlight), and any per-rule compile
-/// errors. Model detection is intentionally excluded — this tests the rules.
+/// sample, the matched rule names, and any per-rule compile errors. Model
+/// detection is intentionally excluded — this tests the rules.
 #[derive(Serialize)]
 struct RuleTestResult {
     redacted: String,
     matches: Vec<RuleHit>,
-    errors: Vec<RuleError>,
-}
-
-#[derive(Serialize)]
-struct RuleError {
-    name: String,
-    error: String,
+    errors: Vec<RuleCompileError>,
 }
 
 /// Compile the (possibly unsaved) rules from the editor and run them over the
 /// sample text, without touching the model. Enabled rules that fail to compile
 /// are reported in `errors`; the rest produce `matches` and the `redacted`
-/// preview. Reuses the daemon's own matcher/masker so the preview cannot drift
-/// from live behaviour.
+/// preview. Reuses the daemon's own compile/match/mask path (`compile_rules` +
+/// `test_rules_preview`) so the preview cannot drift from live behaviour.
 #[tauri::command]
 fn test_rules(rules: Vec<RuleConfig>, sample: String) -> RuleTestResult {
-    let mut compiled = Vec::new();
-    let mut errors = Vec::new();
-    for r in &rules {
-        if !r.enabled || r.name.trim().is_empty() || r.pattern.is_empty() {
-            continue;
-        }
-        match CompiledRule::new(r.name.trim(), &r.pattern) {
-            Ok(c) => compiled.push(c),
-            Err(e) => errors.push(RuleError { name: r.name.trim().to_string(), error: e }),
-        }
-    }
+    let (compiled, errors) =
+        compile_rules(rules.iter().map(|r| (r.name.as_str(), r.pattern.as_str(), r.enabled)));
     let (matches, redacted) = test_rules_preview(&sample, &compiled);
     RuleTestResult { redacted, matches, errors }
 }

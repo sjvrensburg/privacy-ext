@@ -14,8 +14,15 @@
 
 const $ = (id) => document.getElementById(id);
 
-// Keep a margin below the daemon's 40 KB MAX_TEXT_BYTES.
-const BATCH_LIMIT = 30_000;
+// The daemon rejects a single /classify body over 40 KB (MAX_TEXT_BYTES). Batch
+// just under that so a file that fits goes in ONE request: then the daemon runs
+// the model over it (windowed internally, with overlap) AND applies user regex
+// rules over the whole batch — including multi-line rules — exactly as the paste
+// path would. Only files bigger than this get split, always on line boundaries.
+const BATCH_LIMIT = 38_000;
+// The daemon's hard per-request ceiling. A single line bigger than this can't be
+// redacted without cutting it (which could split an entity), so we refuse it.
+const SERVER_LIMIT = 40_000;
 // Above this the browser round-trips get slow (daemon is serialized); warn but allow.
 const SOFT_WARN_BYTES = 200 * 1024;
 // Refuse absurdly large files outright rather than hang the tab.
@@ -48,27 +55,11 @@ function lineUnits(text) {
   return text.match(/[^\n]*\n?/g)?.filter((u) => u !== "") ?? [];
 }
 
-// A single line longer than BATCH_LIMIT is rare (a minified blob or a huge CSV
-// row). Break it into byte-bounded pieces, preferring a comma/space/tab boundary
-// so cells and words aren't cut when it can be avoided.
-function splitLongUnit(unit) {
-  const out = [];
-  let rest = unit;
-  while (byteLen(rest) > BATCH_LIMIT) {
-    let cut = Math.min(rest.length, BATCH_LIMIT);
-    while (byteLen(rest.slice(0, cut)) > BATCH_LIMIT) cut = Math.floor(cut * 0.9);
-    const slice = rest.slice(0, cut);
-    const delim = Math.max(slice.lastIndexOf(","), slice.lastIndexOf(" "), slice.lastIndexOf("\t"));
-    const breakAt = delim > cut * 0.5 ? delim + 1 : cut;
-    out.push(rest.slice(0, breakAt));
-    rest = rest.slice(breakAt);
-  }
-  if (rest) out.push(rest);
-  return out;
-}
-
-// Group line units into batches under BATCH_LIMIT bytes. Concatenating every
-// batch (in order) reproduces the input text exactly.
+// Group whole lines into batches under BATCH_LIMIT bytes. We never cut a line in
+// the middle: a single line that is itself over the limit becomes its own batch,
+// sent whole so the daemon's internal windowing (with overlap) handles it rather
+// than a client-side cut splitting an entity across two independent requests.
+// Concatenating every batch in order reproduces the input text exactly.
 function makeBatches(text) {
   const batches = [];
   let cur = "";
@@ -82,7 +73,7 @@ function makeBatches(text) {
     const b = byteLen(unit);
     if (b > BATCH_LIMIT) {
       push();
-      for (const piece of splitLongUnit(unit)) batches.push(piece);
+      batches.push(unit); // an over-long single line, sent whole
       continue;
     }
     if (curBytes + b > BATCH_LIMIT) push();
@@ -138,19 +129,30 @@ async function redactFile() {
 
   setProgress(0, total);
   for (const batch of batches) {
-    // Skip the network for batches with nothing a detector or rule could match.
-    if (!/[A-Za-z0-9]/.test(batch)) {
+    // Skip the network only for batches with no visible characters at all
+    // (blank lines / whitespace). Anything with content — including non-Latin
+    // scripts a `[A-Za-z0-9]` test would wrongly skip — must be sent so its PII
+    // is actually redacted.
+    if (!/\S/.test(batch)) {
       parts.push(batch);
-    } else {
-      let res;
-      try {
-        res = await classifyBatch(batch);
-      } catch (e) {
-        return fail(`Redaction failed: ${e.message}. Is the ClipCloak app running?`);
-      }
-      parts.push(res.redacted);
-      for (const ent of res.entities) byLabel[ent.label] = (byLabel[ent.label] || 0) + 1;
+      setProgress(++done, total);
+      continue;
     }
+    // A single line over the daemon's hard limit can't be redacted without
+    // cutting it (risking a split entity), so refuse rather than leak.
+    if (byteLen(batch) > SERVER_LIMIT) {
+      return fail(
+        `One line is larger than ${fmtBytes(SERVER_LIMIT)}, which can't be redacted safely. Split that line and try again.`
+      );
+    }
+    let res;
+    try {
+      res = await classifyBatch(batch);
+    } catch (e) {
+      return fail(`Redaction failed: ${e.message}. Is the ClipCloak app running?`);
+    }
+    parts.push(res.redacted);
+    for (const ent of res.entities) byLabel[ent.label] = (byLabel[ent.label] || 0) + 1;
     setProgress(++done, total);
   }
 

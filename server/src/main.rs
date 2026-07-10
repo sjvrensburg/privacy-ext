@@ -8,13 +8,14 @@
 // PII_MODELS_DIR points at a local directory of the 8 ONNX fragments + tokenizer.
 
 use clipcloak_server::{
-    new_live_state, CompiledRule, LiveSettings, ModelSource, Server, ServerConfig,
+    compile_rules, new_live_state, CompiledRule, LiveSettings, ModelSource, Server, ServerConfig,
     DEFAULT_EXTENSION_ORIGIN, DEFAULT_LABELS, DEFAULT_PORT, DEFAULT_THRESHOLD,
 };
 
 /// Parse `PII_RULES` (a JSON array of `{"name","pattern"}`) into compiled regex
-/// rules. Bad JSON is ignored with a warning; individual rules that fail to
-/// compile are skipped so one typo doesn't take the daemon down.
+/// rules. Bad JSON is ignored with a warning; malformed or uncompilable rules are
+/// skipped — but each skip is logged, since a headless operator has no UI that
+/// would otherwise flag a mistyped rule silently vanishing.
 fn parse_rules(json: &str) -> Vec<CompiledRule> {
     let arr: Vec<serde_json::Value> = match serde_json::from_str(json) {
         Ok(v) => v,
@@ -23,19 +24,21 @@ fn parse_rules(json: &str) -> Vec<CompiledRule> {
             return Vec::new();
         }
     };
-    let mut out = Vec::new();
-    for v in arr {
-        let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("").trim();
-        let pattern = v.get("pattern").and_then(|x| x.as_str()).unwrap_or("");
+    let mut specs: Vec<(String, String)> = Vec::new();
+    for (i, v) in arr.iter().enumerate() {
+        let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("").trim().to_string();
+        let pattern = v.get("pattern").and_then(|x| x.as_str()).unwrap_or("").to_string();
         if name.is_empty() || pattern.is_empty() {
+            eprintln!("PII_RULES: rule #{i} skipped — needs a non-empty \"name\" and \"pattern\"");
             continue;
         }
-        match CompiledRule::new(name, pattern) {
-            Ok(r) => out.push(r),
-            Err(e) => eprintln!("PII_RULES: skipping rule {name:?}: {e}"),
-        }
+        specs.push((name, pattern));
     }
-    out
+    let (compiled, errors) = compile_rules(specs.iter().map(|(n, p)| (n.as_str(), p.as_str(), true)));
+    for e in errors {
+        eprintln!("PII_RULES: skipping rule {:?}: {}", e.name, e.error);
+    }
+    compiled
 }
 
 fn main() -> anyhow::Result<()> {
