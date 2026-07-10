@@ -19,4 +19,4 @@ echo "Using ORT_DYLIB_PATH=$ORT_DYLIB_PATH"
 # PII_TOKEN      : bearer token the extension must send (recommended)
 # PII_PORT       : default 8731
 # PII_LABELS     : comma-separated entity labels
-exec ./target/release/pii-server
+exec ./target/release/clipcloak-server

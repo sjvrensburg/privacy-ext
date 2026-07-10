@@ -1,15 +1,15 @@
 [package]
-name = "pii-server"
+name = "clipcloak-server"
 version = "0.4.0"
 edition = "2021"
 license = "MIT"
 
 [lib]
-name = "pii_server"
+name = "clipcloak_server"
 path = "src/lib.rs"
 
 [[bin]]
-name = "pii-server"
+name = "clipcloak-server"
 path = "src/main.rs"
 
 [dependencies]

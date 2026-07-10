@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test for pii-server: boots the release binary against a local model and
+# Smoke test for clipcloak-server: boots the release binary against a local model and
 # asserts the HTTP contract the extension depends on — health, bearer-token auth
 # enforcement (secure-by-default), and actual redaction. Run in CI on every push
 # and locally with:
@@ -7,11 +7,11 @@
 #   ORT_DYLIB_PATH=/path/to/libonnxruntime.so PII_MODELS_DIR=./semplifica \
 #     bash server/smoke-test.sh
 #
-# Requires the release binary at server/target/release/pii-server.
+# Requires the release binary at server/target/release/clipcloak-server.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BIN="$ROOT/server/target/release/pii-server"
+BIN="$ROOT/server/target/release/clipcloak-server"
 PORT="${PII_PORT:-8731}"
 TOKEN="smoke-secret-token"
 ORIGIN="chrome-extension://ihjamhkkcgbifajnbikldcjfamggnbaj"

@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Privacy Redactor",
+  "productName": "ClipCloak",
   "version": "0.4.0",
-  "identifier": "ai.semplifica.privacy-redactor",
+  "identifier": "ai.semplifica.clipcloak",
   "build": {
     "frontendDist": "../src"
   },
@@ -11,7 +11,7 @@
     "windows": [
       {
         "label": "settings",
-        "title": "Privacy Redactor",
+        "title": "ClipCloak",
         "width": 440,
         "height": 640,
         "resizable": false,
@@ -36,6 +36,6 @@
     "longDescription": "On-device PII redactor. Runs a local detection daemon the Chrome extension talks to; no text leaves your machine.",
     "shortDescription": "On-device PII redaction daemon",
     "resources": {},
-    "externalBin": ["binaries/pii-native-host"]
+    "externalBin": ["binaries/clipcloak-native-host"]
   }
 }

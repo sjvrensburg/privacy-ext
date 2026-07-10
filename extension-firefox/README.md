@@ -1,4 +1,4 @@
-# PII Redactor — Firefox build
+# ClipCloak — Firefox build
 
 A Gecko (Firefox) MV3 port of `../extension-client`. All logic, styling and
 icons are shared with the Chrome client and mirrored here by
@@ -18,7 +18,7 @@ Firefox background script.
 
 ## Load it (temporary, for development)
 
-1. Run the Privacy Redactor tray app once so it installs the Firefox
+1. Run the ClipCloak tray app once so it installs the Firefox
    native-messaging host manifest (to `~/.mozilla/native-messaging-hosts/` on
    Linux, or the `HKCU\Software\Mozilla\NativeMessagingHosts` registry key on
    Windows).

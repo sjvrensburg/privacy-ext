@@ -1,11 +1,11 @@
-# privacy-ext — on-device PII redactor (server-client)
+# ClipCloak — on-device PII redactor (server-client)
 
 Detects and redacts PII pasted into web forms. A **local Rust daemon** runs the
 GLiNER2 model (via `gliner2-rs`); a **thin Chrome extension** intercepts pastes,
 asks the daemon, and offers redacted vs original text. Nothing leaves the machine.
 
 ```
-content.js (paste hook) ──▶ background.js ──fetch──▶ 127.0.0.1:8731 (pii-server, Rust)
+content.js (paste hook) ──▶ background.js ──fetch──▶ 127.0.0.1:8731 (clipcloak-server, Rust)
        ▲                                                      │ gliner2-rs (8 ONNX fragments)
        └────────────── redacted text / spans ◀────────────────┘
 ```
@@ -16,7 +16,7 @@ Built with `tiny_http` (sync) + `gliner2_inference` (gliner2-rs), ort load-dynam
 
 ```sh
 cd server
-cargo build --release                 # already built: target/release/pii-server
+cargo build --release                 # already built: target/release/clipcloak-server
 # needs a libonnxruntime.so (ort load-dynamic); run.sh auto-finds one:
 PII_TOKEN=<your-secret> ./run.sh
 ```
@@ -42,7 +42,7 @@ messaging + CORS notes.
 
 Pairing is zero-config when the **desktop tray app** (`desktop/`) is running: it
 persists its port + token and registers a Chrome Native Messaging host
-(`ai.semplifica.privacy_redactor`); the extension calls that host on demand and
+(`ai.semplifica.clipcloak`); the extension calls that host on demand and
 never needs a manually-typed URL or token. Open the popup to see the live
 connection chip (green = paired and reachable) and a **Re-pair** button for
 when the tray app's token has rotated. Then paste a sentence with PII into any

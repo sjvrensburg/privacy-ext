@@ -31,7 +31,7 @@ struct PairReply {
 // Matches the tray app's `app_config_dir()/config.json` (Tauri's default is
 // the platform config dir joined with the app identifier).
 fn config_path() -> Option<PathBuf> {
-    Some(dirs::config_dir()?.join("ai.semplifica.privacy-redactor").join("config.json"))
+    Some(dirs::config_dir()?.join("ai.semplifica.clipcloak").join("config.json"))
 }
 
 fn read_message() -> io::Result<Option<Vec<u8>>> {
@@ -65,7 +65,7 @@ fn pair_reply() -> PairReply {
             ok: false,
             port: None,
             token: None,
-            error: Some("Privacy Redactor isn't running — open the tray app once to pair.".to_string()),
+            error: Some("ClipCloak isn't running — open the tray app once to pair.".to_string()),
         },
     }
 }

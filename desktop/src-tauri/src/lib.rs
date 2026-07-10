@@ -1,7 +1,7 @@
 // Tauri desktop front-end for the PII redaction daemon.
 //
 // Responsibilities:
-//   * spawn the `pii_server` on a background thread (loads the model once),
+//   * spawn the `clipcloak_server` on a background thread (loads the model once),
 //   * expose a small tray icon (Open Settings / Quit) so it lives in the system
 //     tray rather than a taskbar window,
 //   * present a settings window (port, token, threshold, per-label toggles,
@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use pii_server::{
+use clipcloak_server::{
     init_ort, load_engine, new_live_state, LiveSettings, LiveState, ModelSource, Server,
     ServerConfig, DEFAULT_LABELS, DEFAULT_PORT, DEFAULT_THRESHOLD,
 };
@@ -51,7 +51,7 @@ struct AppConfig {
 }
 
 fn default_chrome_extension_ids() -> Vec<String> {
-    vec![pii_server::DEFAULT_EXTENSION_ID.to_string()]
+    vec![clipcloak_server::DEFAULT_EXTENSION_ID.to_string()]
 }
 
 impl Default for AppConfig {
@@ -73,7 +73,7 @@ impl AppConfig {
     fn chrome_extension_origins(&self) -> Vec<String> {
         self.chrome_extension_ids
             .iter()
-            .map(|id| pii_server::chrome_extension_origin(id))
+            .map(|id| clipcloak_server::chrome_extension_origin(id))
             .collect()
     }
 
@@ -117,7 +117,7 @@ fn generate_token() -> String {
 /// Name Chrome/Chromium look up in NativeMessagingHosts — must match
 /// `NATIVE_HOST` in `extension-client/background.js` and the manifest's
 /// `allowed_origins` must match `DEFAULT_EXTENSION_ORIGIN`.
-const NATIVE_HOST_NAME: &str = "ai.semplifica.privacy_redactor";
+const NATIVE_HOST_NAME: &str = "ai.semplifica.clipcloak";
 
 /// Gecko extension id the Firefox build pins (see
 /// `extension-firefox/manifest.json`). Firefox's native-messaging manifest
@@ -125,12 +125,12 @@ const NATIVE_HOST_NAME: &str = "ai.semplifica.privacy_redactor";
 /// `chrome-extension://` origin Chrome uses.
 const FIREFOX_EXTENSION_ID: &str = "pii-redactor@semplifica.ai";
 
-/// Registers the `pii-native-host` sidecar with the browser so the extension
+/// Registers the `clipcloak-native-host` sidecar with the browser so the extension
 /// can pair with zero manual config. Best-effort: a failure here just means
 /// the extension falls back to showing "not paired" until the tray app has
 /// run once with the sidecar present.
 fn install_native_messaging_host(_app: &AppHandle, chrome_extension_ids: &[String]) {
-    let host_binary_name = if cfg!(windows) { "pii-native-host.exe" } else { "pii-native-host" };
+    let host_binary_name = if cfg!(windows) { "clipcloak-native-host.exe" } else { "clipcloak-native-host" };
     let exe_dir = match std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.to_path_buf())) {
         Some(d) => d,
         None => return,
@@ -151,14 +151,14 @@ fn install_native_messaging_host(_app: &AppHandle, chrome_extension_ids: &[Strin
         .collect();
     let manifest = serde_json::json!({
         "name": NATIVE_HOST_NAME,
-        "description": "Privacy Redactor pairing host",
+        "description": "ClipCloak pairing host",
         "path": host_path.to_string_lossy(),
         "type": "stdio",
         "allowed_origins": allowed_origins,
     });
     let firefox_manifest = serde_json::json!({
         "name": NATIVE_HOST_NAME,
-        "description": "Privacy Redactor pairing host",
+        "description": "ClipCloak pairing host",
         "path": host_path.to_string_lossy(),
         "type": "stdio",
         "allowed_extensions": [FIREFOX_EXTENSION_ID],
@@ -420,7 +420,7 @@ pub fn run() {
             let menu = MenuBuilder::new(app).items(&[&open, &quit]).build()?;
             TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Privacy Redactor")
+                .tooltip("ClipCloak")
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id().as_ref() {

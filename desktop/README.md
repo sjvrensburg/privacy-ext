@@ -1,6 +1,6 @@
-# Privacy Redactor — desktop tray app
+# ClipCloak — desktop tray app
 
-A [Tauri 2](https://tauri.app) wrapper around the `pii-server` daemon. It runs the
+A [Tauri 2](https://tauri.app) wrapper around the `clipcloak-server` daemon. It runs the
 GLiNER2 model in the background, lives in the system tray, and offers a settings
 window (port, access token, detection threshold, per-label redaction toggles,
 launch-at-login). The Chrome extension talks to it exactly as before.
@@ -12,8 +12,8 @@ src-tauri/        the Rust/Tauri shell
   tauri.conf.json window, bundle targets (deb / appimage / nsis), icons
 ```
 
-The server logic itself lives in `../server` (the `pii_server` library); this app
-spawns `pii_server::Server` on a thread and mutates its live state from the GUI.
+The server logic itself lives in `../server` (the `clipcloak_server` library); this app
+spawns `clipcloak_server::Server` on a thread and mutates its live state from the GUI.
 
 ## Run in dev
 

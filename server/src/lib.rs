@@ -241,7 +241,7 @@ fn json_response(
 /// Initialise the ONNX Runtime (load-dynamic). Call once before loading a model.
 /// `ORT_DYLIB_PATH` must point at a `libonnxruntime` shared lib.
 pub fn init_ort() -> anyhow::Result<()> {
-    ort::init().with_name("pii-server").commit()?;
+    ort::init().with_name("clipcloak-server").commit()?;
     Ok(())
 }
 
