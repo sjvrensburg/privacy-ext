@@ -50,6 +50,24 @@
       <div id="labels" class="labels"></div>
     </section>
 
+    <section class="card">
+      <h2>Custom rules</h2>
+      <p class="hint" style="margin-top:0">Regex rules run with priority over the model. A rule's name becomes its redaction tag, e.g. a rule named <span class="mono">Account</span> masks matches as <span class="mono">[ACCOUNT]</span>.</p>
+      <div id="rules" class="rules-list"></div>
+      <button id="addRule" class="ghost" type="button">Add rule</button>
+    </section>
+
+    <section class="card">
+      <h2>Test filters</h2>
+      <textarea id="testInput" class="test-input" rows="3" placeholder="Type or paste sample text to see what your rules catch…"></textarea>
+      <div id="testErrors" class="rule-errors"></div>
+      <div class="test-out hidden" id="testOut">
+        <div class="test-label">Redacted preview</div>
+        <pre id="testRedacted" class="preview"></pre>
+        <p id="testSummary" class="hint"></p>
+      </div>
+    </section>
+
     <section class="card row">
       <input type="checkbox" id="autostart" />
       <label for="autostart" class="checkbox-label">Launch at login</label>

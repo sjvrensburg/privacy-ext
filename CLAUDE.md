@@ -66,9 +66,10 @@ After editing any shared extension file, run `scripts/sync-firefox.sh` to mirror
 GLiNER2 (205M params, schema-driven). The default repo is now the SA-names
 fine-tune `stefanj0/gliner2-sa-names-lora` (`onnx_int8` subfolder), auto-fetched
 from HF on first run unless `PII_MODELS_DIR` points at local fragments; override
-with `PII_MODEL_REPO`/`PII_SUBFOLDER`. Local model dirs: `semplifica/` (the
-active fragments), `semplifica_baseline_backup/` and `semplifica_finetuned/`
-(comparison sets). See `nguni-name-detection-gap` / `gliner2-finetune-pipeline`
+with `PII_MODEL_REPO`/`PII_SUBFOLDER`. `semplifica/` is the local copy of the
+active model (gitignored); it is byte-identical to the HF repo's `onnx_int8`
+fragments (verified by sha256 — note the files are named `*_fp16.onnx` but are
+the int8 export). See `nguni-name-detection-gap` / `gliner2-finetune-pipeline`
 memories for why the fine-tune exists. The model **cannot** be a single ONNX
 graph — it's 8 fragments (encoder + schema_gather + count_* + token_gather +
 span_rep + scorer + classifier), orchestrated by gliner2-rs. fp16 ≈ 620 MB.

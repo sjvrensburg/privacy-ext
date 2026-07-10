@@ -110,6 +110,45 @@ button.ghost {
   border: 1px solid rgba(148,163,184,0.2); padding: 8px 12px;
 }
 
+/* Custom regex rules */
+.rules-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.rule { display: flex; align-items: center; gap: 8px; }
+.rule .rule-name { flex: 0 0 30%; }
+.rule .rule-pattern { flex: 1; }
+.rule .rule-del {
+  flex: none; padding: 6px 10px; line-height: 1;
+  color: var(--muted);
+}
+.rule .rule-del:hover { color: var(--err); border-color: var(--err); }
+.rule input[type=checkbox] { flex: none; }
+.rules-list:empty { margin-bottom: 0; }
+
+/* Test filters */
+.test-input {
+  width: 100%; padding: 8px 10px; resize: vertical;
+  background: var(--card-2); color: var(--text);
+  border: 1px solid rgba(148,163,184,0.15); border-radius: 7px;
+  font: inherit;
+}
+.test-input:focus { outline: none; border-color: var(--accent); }
+.rule-errors { margin-top: 8px; }
+.rule-err {
+  font: 11px/1.4 ui-monospace, monospace;
+  color: var(--err); margin-top: 4px;
+}
+.test-out { margin-top: 10px; }
+.test-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); margin-bottom: 4px;
+}
+.preview {
+  margin: 0; padding: 8px 10px;
+  background: var(--card-2); border-radius: 7px;
+  font: 12px/1.5 ui-monospace, monospace; color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 160px; overflow: auto;
+}
+
 footer {
   position: sticky; bottom: 0;
   display: flex; align-items: center; justify-content: flex-end; gap: 12px;
