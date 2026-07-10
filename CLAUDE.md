@@ -20,7 +20,17 @@ content.js (paste hook) ─▶ background.js ─fetch─▶ 127.0.0.1:8731  (cli
 - `server/` — the Rust daemon (`clipcloak-server`). `tiny_http` (sync; the model call
   blocks and is serialized, so no async runtime) + `gliner2_inference`
   (vendored `gliner2-rs` at `server/vendor-gliner2-rs/`) + `ort` (load-dynamic).
-  `src/main.rs` is the whole server; `run.sh` launches it.
+  `src/lib.rs` holds the whole server (routing, windowing, `ort`/engine load,
+  `ServerConfig`/`LiveState`, CORS); `src/main.rs` is a thin headless front-end
+  that reads env vars and calls the lib. `run.sh` launches it. The desktop app
+  drives the *same* lib with a config it owns.
+- `desktop/` — the Tauri 2 tray GUI (`clipcloak-desktop`) that wraps the daemon
+  for non-developers. `src-tauri/src/lib.rs` starts the server (as a library),
+  persists port+token, and installs a Chrome Native Messaging host
+  (`ai.semplifica.clipcloak`, built as the `clipcloak-native-host` sidecar bin)
+  so the extension pairs with **zero manual token entry**. `src/` is the tray
+  webview UI. This is the supported end-user path; the headless `server/` has
+  nothing to pair with on its own.
 - `extension-client/` — the MV3 thin client (manifest, background fetch,
   content-script paste hook + redaction UI, popup settings). No model code.
 - `extension-firefox/` — the Gecko MV3 port. Shares every file with
@@ -36,17 +46,32 @@ content.js (paste hook) ─▶ background.js ─fetch─▶ 127.0.0.1:8731  (cli
 ## Build & run
 
 ```sh
+# Headless daemon:
 cd server && cargo build --release
 PII_TOKEN=<secret> PII_MODELS_DIR=../semplifica ./run.sh   # or ./run.sh to auto-download
+
+# Desktop tray app (bundles the daemon + native-messaging host):
+cd desktop && ./src-tauri/scripts/prepare-sidecar.sh       # build+stage the sidecar first
+npx tauri dev                                              # or `npx tauri build`
 ```
-Then load `extension-client/` unpacked and set the matching token in the popup.
+Then load `extension-client/` unpacked. With the tray app running, pairing is
+automatic (native messaging); with only the headless daemon, set the matching
+token in the popup manually.
+
+After editing any shared extension file, run `scripts/sync-firefox.sh` to mirror
+`extension-client/` → `extension-firefox/` (everything but `manifest.json`).
 
 ## Model
 
-GLiNER2 (`SemplificaAI/gliner2-privacy-filter-PII-multi`, 205M params,
-schema-driven). It **cannot** be a single ONNX graph — it's 8 fragments
-(encoder + schema_gather + count_* + token_gather + span_rep + scorer +
-classifier), orchestrated by gliner2-rs. fp16 ≈ 620 MB total.
+GLiNER2 (205M params, schema-driven). The default repo is now the SA-names
+fine-tune `stefanj0/gliner2-sa-names-lora` (`onnx_int8` subfolder), auto-fetched
+from HF on first run unless `PII_MODELS_DIR` points at local fragments; override
+with `PII_MODEL_REPO`/`PII_SUBFOLDER`. Local model dirs: `semplifica/` (the
+active fragments), `semplifica_baseline_backup/` and `semplifica_finetuned/`
+(comparison sets). See `nguni-name-detection-gap` / `gliner2-finetune-pipeline`
+memories for why the fine-tune exists. The model **cannot** be a single ONNX
+graph — it's 8 fragments (encoder + schema_gather + count_* + token_gather +
+span_rep + scorer + classifier), orchestrated by gliner2-rs. fp16 ≈ 620 MB.
 
 ## Gotchas (learned the hard way)
 
@@ -81,7 +106,8 @@ extension's ID is fixed by the `key` in `extension-client/manifest.json`
 `Access-Control-Allow-Origin` for that origin (`DEFAULT_EXTENSION_ORIGIN` in
 `server/src/main.rs`). Override with `PII_ALLOWED_ORIGINS` (comma-separated) for
 a differently-keyed build. The signing key for the pinned ID lives in
-`extension-client/.keys/` (gitignored) — needed only to re-pack/publish.
+`extension-client/.keys/` (gitignored) — needed only to re-pack/publish; the
+process for reserving that fixed ID is in `docs/reserve-chrome-id.md`.
 
 Firefox's extension origin (`moz-extension://<uuid>`) is randomised per install
 and can't be pinned, so the Firefox build authorises native messaging by
