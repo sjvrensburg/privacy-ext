@@ -1,0 +1,387 @@
+/* ==========================================================================
+   ClipCloak site — press-sheet system adapted from "Raster Sentinel".
+   Flat panels, one inverted "paper" column, hairline rules, and a single
+   accent action per view. No gradients. No shadows. No radius (one pill).
+   The Raster Sentinel structure is kept verbatim; only the palette is swapped
+   to ClipCloak's slate/navy + blue scheme, and imagery becomes the redaction
+   demo (the product's own output) instead of a dithered portrait.
+   ========================================================================== */
+
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  /* Color — ClipCloak scheme, six working values + one real status green */
+  --color-ink: #0f172a;          /* panels + page sheet; text on paper */
+  --color-page: #0a0e1a;         /* the void behind the sheet */
+  --color-paper: #e8edf5;        /* the single inverted panel; primary text on ink */
+  --color-accent: #4f8cff;       /* the one action color, focus, invalid */
+  --color-accent-pressed: #2451c9;
+  --color-ghost: #94a3b8;        /* inactive verbs, secondary text, placeholders */
+  --color-hairline: #24324a;     /* 1px rules on ink */
+  --color-hairline-on-paper: #c8d2e0;
+  --color-raster-black: #0f172a; /* text + bar tone on paper */
+  --color-status: #22c55e;       /* real connection status only, used once */
+
+  /* Semantic aliases */
+  --surface: var(--color-ink);
+  --on-surface: var(--color-paper);
+  --on-surface-dim: var(--color-ghost);
+  --rule: var(--color-hairline);
+  --accent: var(--color-accent);
+  --focus: var(--color-accent);
+
+  /* Typography */
+  --font-sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  --text-display-xl: 600 clamp(3rem, 7vw, 5.5rem) / 1.02 var(--font-sans);
+  --text-display-lg: 500 clamp(2.25rem, 5vw, 3.75rem) / 1.04 var(--font-sans);
+  --text-headline-md: 500 clamp(1.6rem, 3vw, 2.4rem) / 1.08 var(--font-sans);
+  --text-title-sm: 500 1.375rem / 1.25 var(--font-sans);
+  --text-body-md: 400 1rem / 1.6 var(--font-sans);
+  --text-body-sm: 400 0.875rem / 1.55 var(--font-sans);
+  --text-label-sm: 500 0.8125rem / 1.2 var(--font-sans);
+  --text-mono-data: 400 0.8125rem / 1.6 var(--font-mono);
+
+  /* Shape */
+  --radius-none: 0;
+  --radius-pill: 999px;
+
+  /* Spacing */
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2.5rem;
+  --space-xl: 4rem;
+  --space-2xl: 6rem;
+
+  /* Layout */
+  --page-max: 1440px;
+  --gutter: var(--space-md);
+  --measure: 34rem;
+
+  /* Control sizing */
+  --control-height: 3rem;
+  --control-height-sm: 2.25rem;
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+* { box-sizing: border-box; }
+
+html {
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--color-page);
+  color: var(--on-surface);
+  font: var(--text-body-md);
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+
+h1 { font: var(--text-display-xl); letter-spacing: -0.02em; }
+h2 { font: var(--text-display-lg); letter-spacing: -0.015em; }
+h3 { font: var(--text-headline-md); letter-spacing: -0.01em; }
+h4 { font: var(--text-title-sm); }
+
+a { color: inherit; text-decoration: none; }
+/* Links carry an underline as their affordance, never the accent color: the
+   accent is spent only on the one primary action per view (DESIGN.md). */
+p a { text-decoration: underline; text-underline-offset: 0.2em; text-decoration-color: var(--on-surface-dim); }
+p a:hover { text-decoration-color: currentColor; }
+
+img { display: block; max-width: 100%; }
+
+::selection { background: var(--color-accent); color: #fff; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* --------------------------------------------------------------------------
+   The sheet: a centered ink page floating on the void, edge hairlines
+   -------------------------------------------------------------------------- */
+
+.page {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  background: var(--color-ink);
+  border-left: 1px solid var(--color-hairline);
+  border-right: 1px solid var(--color-hairline);
+}
+
+.panel { background: var(--color-ink); color: var(--color-paper); }
+
+.panel-paper {
+  background: var(--color-paper);
+  color: var(--color-raster-black);
+  --on-surface: var(--color-raster-black);
+  --on-surface-dim: #5c6b82;
+  --rule: var(--color-hairline-on-paper);
+}
+
+/* Hairline-divided panel row. Columns get rules between them, not boxes. */
+.panel-grid { display: grid; grid-template-columns: 1fr 1.2fr 1fr; }
+.panel-grid > * + * { border-left: 1px solid var(--color-hairline); }
+
+@media (max-width: 900px) {
+  .panel-grid { grid-template-columns: 1fr; }
+  .panel-grid > * + * { border-left: 0; border-top: 1px solid var(--color-hairline); }
+}
+
+.rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  height: var(--control-height);
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-none);
+  font: var(--text-label-sm);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* The single accent action. One per view. */
+.btn-primary { background: var(--color-accent); color: #fff; }
+.btn-primary:hover { background: var(--color-accent-pressed); }
+.btn-primary:active { background: var(--color-raster-black); color: #fff; }
+
+/* Primary action pierced by a hairline rule running through its center. */
+.action-rule { display: flex; align-items: center; width: 100%; gap: 0; }
+.action-rule::before, .action-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+}
+.action-rule .btn { margin: 0 var(--space-md); }
+
+.btn-outline {
+  background: transparent;
+  color: var(--on-surface);
+  border: 1px solid var(--rule);
+}
+.btn-outline:hover { border-color: var(--on-surface); }
+
+/* The only curved shape in the system: a genuine secondary link. */
+.btn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: transparent;
+  color: var(--on-surface);
+  border: 1px solid var(--on-surface);
+  border-radius: var(--radius-pill);
+  height: var(--control-height-sm);
+  padding: 0 var(--space-md);
+  font: var(--text-label-sm);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.btn-pill:hover { background: var(--on-surface); color: var(--surface); }
+.panel-paper .btn-pill:hover { background: var(--color-raster-black); color: var(--color-paper); }
+
+/* --------------------------------------------------------------------------
+   Verb stack — ghosted vertical word list; exactly one word is lit
+   -------------------------------------------------------------------------- */
+
+.verb-stack { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2xs); }
+.verb-stack li {
+  font: var(--text-display-lg);
+  font-size: clamp(1.9rem, 3.5vw, 3rem);
+  letter-spacing: -0.015em;
+  color: var(--color-ghost);
+}
+.verb-stack li.is-lit { color: var(--on-surface); }
+
+/* --------------------------------------------------------------------------
+   Redaction demo — the featured content on the paper panel.
+   A real paste, with PII struck out as solid ink bars (the product's output).
+   -------------------------------------------------------------------------- */
+
+.redaction {
+  font: var(--text-body-md);
+  font-size: 1.0625rem;
+  line-height: 1.9;
+  color: var(--color-raster-black);
+}
+
+/* A solid ink bar standing in for redacted text. Not decorative: it is what
+   ClipCloak inserts in place of an entity. The type slug is the classifier's
+   own label for that span. */
+.pii {
+  display: inline-block;
+  position: relative;
+  background: var(--color-raster-black);
+  color: var(--color-paper);
+  padding: 0.05em 0.5em;
+  font: var(--text-mono-data);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: baseline;
+  transform: translateY(-0.08em);
+}
+
+.redaction-meta { margin-top: var(--space-lg); }
+
+/* --------------------------------------------------------------------------
+   Data readouts — IBM Plex Mono for real values only
+   -------------------------------------------------------------------------- */
+
+.data-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--rule);
+  font: var(--text-mono-data);
+}
+.data-row .data-key { color: var(--on-surface-dim); }
+.data-row .data-value { color: var(--on-surface); text-align: right; }
+.data-value.is-live { color: var(--color-status); }
+
+/* --------------------------------------------------------------------------
+   Code / command blocks — real, runnable, no ornament
+   -------------------------------------------------------------------------- */
+
+.code {
+  font: var(--text-mono-data);
+  font-size: 0.8125rem;
+  color: var(--on-surface);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: var(--space-md);
+  overflow-x: auto;
+  white-space: pre;
+}
+.code .tok-comment { color: var(--on-surface-dim); }
+.code .tok-accent { color: var(--color-accent); }
+
+/* --------------------------------------------------------------------------
+   Navigation — logo mark + wordmark left, plain links, one action right
+   -------------------------------------------------------------------------- */
+
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  height: 4rem;
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--rule);
+}
+.nav-brand { display: inline-flex; align-items: center; gap: var(--space-xs); font: var(--text-label-sm); font-size: 1.0625rem; }
+.nav-brand img { width: 1.75rem; height: 1.75rem; }
+.nav-links { display: flex; gap: var(--space-md); font: var(--text-body-sm); }
+.nav-links a { color: var(--on-surface-dim); }
+.nav-links a:hover, .nav-links a[aria-current="page"] { color: var(--on-surface); }
+.nav-actions { display: flex; align-items: center; gap: var(--space-sm); }
+
+@media (max-width: 640px) { .nav-links { display: none; } }
+
+/* --------------------------------------------------------------------------
+   Icons — Tabler, 1.5px stroke, current color, utility sizes only
+   -------------------------------------------------------------------------- */
+
+.icon { width: 1.5rem; height: 1.5rem; stroke: currentColor; stroke-width: 1.5; fill: none; flex: none; }
+.icon-sm { width: 1.25rem; height: 1.25rem; }
+
+/* --------------------------------------------------------------------------
+   Layout helpers
+   -------------------------------------------------------------------------- */
+
+.section { padding: var(--space-2xl) var(--gutter); }
+.section-tight { padding: var(--space-xl) var(--gutter); }
+.section + .section, .section + .section-tight, .section-tight + .section { border-top: 1px solid var(--rule); }
+
+.stack-xs > * + * { margin-top: var(--space-xs); }
+.stack-sm > * + * { margin-top: var(--space-sm); }
+.stack-md > * + * { margin-top: var(--space-md); }
+.stack-lg > * + * { margin-top: var(--space-lg); }
+
+.text-dim { color: var(--on-surface-dim); }
+.measure { max-width: var(--measure); }
+.mono { font: var(--text-mono-data); }
+
+/* Two-column feature split: heading + measure body left, content right */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.split > * { padding: var(--space-2xl) var(--gutter); min-width: 0; }
+.split > * + * { border-left: 1px solid var(--rule); }
+@media (max-width: 860px) {
+  .split { grid-template-columns: 1fr; }
+  .split > * + * { border-left: 0; border-top: 1px solid var(--rule); }
+}
+
+/* Step columns for the flow */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); }
+.steps > * { padding: var(--space-xl) var(--gutter); min-width: 0; }
+.steps > * + * { border-left: 1px solid var(--rule); }
+@media (max-width: 860px) {
+  .steps { grid-template-columns: 1fr; }
+  .steps > * + * { border-left: 0; border-top: 1px solid var(--rule); }
+}
+.step-index { font: var(--text-mono-data); color: var(--on-surface-dim); }
+
+/* Hero three-panel composition */
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1.25fr 0.9fr;
+  min-height: min(78vh, 760px);
+}
+.hero > * { min-width: 0; }
+.hero > * + * { border-left: 1px solid var(--color-hairline); }
+.hero-col { display: flex; flex-direction: column; justify-content: space-between; padding: var(--space-xl) var(--gutter); gap: var(--space-xl); }
+
+/* The one statement headline is smaller than the global display-xl so it fits
+   inside the narrow hero column without forced line breaks. */
+.hero h1 { font: 600 clamp(2.25rem, 3.2vw, 3.25rem) / 1.06 var(--font-sans); letter-spacing: -0.02em; }
+
+/* Featured paper column: a halftone print of the mark up top, redaction demo and
+   the single action below. The bone panel carries the imagery, per the system. */
+.hero-paper { position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: var(--space-lg); padding: var(--space-lg) var(--gutter); }
+.hero-paper > * { position: relative; z-index: 1; }
+.hero-raster { width: min(74%, 340px); margin: 0 auto; }
+
+/* Redacted-document texture behind the mark: rows of dim ink bars, the way a
+   released classified page reads. Faint, so the clipboard and demo stay the
+   focus. Decorative, so it is hidden from assistive tech. */
+.redact-field { position: absolute; inset: 0; z-index: 0; padding: var(--space-lg) var(--space-lg); line-height: 2.05; pointer-events: none; user-select: none;
+  -webkit-mask-image: radial-gradient(118% 82% at 50% 41%, transparent 28%, #000 66%);
+  mask-image: radial-gradient(118% 82% at 50% 41%, transparent 28%, #000 66%); }
+.redact-field .rb { display: inline-block; height: 0.7em; vertical-align: middle; margin: 0 0.32em 0.5em 0; background: rgba(15, 23, 42, 0.17); }
+.redact-field .rbp { display: block; height: var(--space-sm); }
+.redact-field .w1 { width: 2.3em; } .redact-field .w2 { width: 3.6em; }
+.redact-field .w3 { width: 5em; }   .redact-field .w4 { width: 6.6em; }
+.redact-field .w5 { width: 8.2em; }
+
+@media (max-width: 980px) {
+  .hero { grid-template-columns: 1fr; }
+  .hero > * + * { border-left: 0; border-top: 1px solid var(--color-hairline); }
+  .hero-col { gap: var(--space-lg); }
+  .hero-raster { width: min(56%, 300px); }
+}
+
+/* Footer */
+.footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); flex-wrap: wrap; padding: var(--space-lg) var(--gutter); border-top: 1px solid var(--rule); }
+.footer-brand { display: inline-flex; align-items: center; gap: var(--space-xs); font: var(--text-label-sm); }
+.footer-brand img { width: 1.5rem; height: 1.5rem; }
+.footer-links { display: flex; gap: var(--space-md); font: var(--text-body-sm); color: var(--on-surface-dim); }
+.footer-links a:hover { color: var(--on-surface); }
+.footer .mono { color: var(--on-surface-dim); }

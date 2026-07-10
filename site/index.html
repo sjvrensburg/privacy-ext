@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ClipCloak: redact PII before you paste it</title>
+  <meta name="description" content="ClipCloak detects and redacts personal information you paste into web forms, using a model that runs entirely on your own machine. No network, no accounts." />
+  <link rel="icon" href="assets/logo-32.png" />
+  <link rel="stylesheet" href="css/system.css" />
+</head>
+<body>
+  <div class="page">
+
+    <!-- Nav -->
+    <nav class="nav">
+      <a class="nav-brand" href="./">
+        <img src="assets/logo.png" alt="" />
+        ClipCloak
+      </a>
+      <div class="nav-links">
+        <a href="#how">How it works</a>
+        <a href="#detects">What it catches</a>
+        <a href="#security">On device</a>
+        <a href="#install">Install</a>
+        <a href="privacy.html">Privacy</a>
+      </div>
+      <div class="nav-actions">
+        <a class="btn-pill" href="https://github.com/sjvrensburg/clipcloak" target="_blank" rel="noopener">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" /></svg>
+          Source
+        </a>
+      </div>
+    </nav>
+
+    <!-- Hero: display headline | paper redaction demo | verb stack -->
+    <section class="hero">
+      <div class="hero-col panel">
+        <div class="stack-md">
+          <h1>The personal bits never leave your machine.</h1>
+          <p class="text-dim measure">ClipCloak watches for text you paste into web forms, finds the names, emails, phone and ID numbers inside it with a model that runs on your own computer, and hands back a redacted copy. You decide what actually gets pasted.</p>
+        </div>
+        <div>
+          <div class="data-row"><span class="data-key">runs at</span><span class="data-value mono">127.0.0.1:8731</span></div>
+          <div class="data-row"><span class="data-key">text sent off device</span><span class="data-value">none</span></div>
+        </div>
+      </div>
+
+      <div class="hero-paper panel-paper">
+        <div class="redact-field" aria-hidden="true">
+          <i class="rb w3"></i><i class="rb w1"></i><i class="rb w4"></i><i class="rb w2"></i><i class="rb w5"></i><i class="rb w1"></i><i class="rb w3"></i><i class="rb w2"></i><i class="rb w4"></i><i class="rb w1"></i>
+          <b class="rbp"></b>
+          <i class="rb w2"></i><i class="rb w5"></i><i class="rb w3"></i><i class="rb w1"></i><i class="rb w4"></i><i class="rb w2"></i><i class="rb w3"></i><i class="rb w1"></i><i class="rb w4"></i><i class="rb w2"></i><i class="rb w5"></i><i class="rb w1"></i>
+          <b class="rbp"></b>
+          <i class="rb w3"></i><i class="rb w2"></i><i class="rb w4"></i><i class="rb w1"></i><i class="rb w2"></i><i class="rb w5"></i><i class="rb w3"></i><i class="rb w1"></i>
+          <b class="rbp"></b>
+          <i class="rb w4"></i><i class="rb w2"></i><i class="rb w3"></i><i class="rb w1"></i><i class="rb w4"></i><i class="rb w2"></i><i class="rb w5"></i><i class="rb w1"></i><i class="rb w3"></i><i class="rb w2"></i><i class="rb w4"></i>
+          <b class="rbp"></b>
+          <i class="rb w1"></i><i class="rb w2"></i><i class="rb w5"></i><i class="rb w3"></i><i class="rb w1"></i><i class="rb w4"></i><i class="rb w2"></i><i class="rb w3"></i><i class="rb w1"></i>
+          <b class="rbp"></b>
+          <i class="rb w4"></i><i class="rb w2"></i><i class="rb w5"></i><i class="rb w1"></i><i class="rb w3"></i><i class="rb w2"></i><i class="rb w4"></i>
+        </div>
+        <img class="hero-raster" src="assets/hero-raster.png" alt="The ClipCloak mark: an incognito figure on a clipboard, rendered as a halftone print" />
+        <p class="redaction">Hi, I'm <span class="pii">name</span>. Reach me on <span class="pii">email</span> or <span class="pii">phone</span>. My client number is <span class="pii">id_num</span>.</p>
+        <div class="redaction-meta stack-sm">
+          <p class="text-dim" style="font-size:0.9375rem">Four spans found, four masked, in one local pass.</p>
+          <div class="action-rule">
+            <a class="btn btn-primary" href="#install">Install ClipCloak</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-col panel">
+        <ul class="verb-stack">
+          <li>Detect</li>
+          <li class="is-lit">Redact</li>
+          <li>Review</li>
+          <li>Insert</li>
+        </ul>
+        <p class="text-dim" style="font-size:0.9375rem">A thin Chrome and Firefox extension talks to a local daemon. The model is the work; the extension is just the paste hook and the choice.</p>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section-tight" id="how">
+      <h3 class="measure">How a paste is handled</h3>
+    </section>
+    <div class="steps">
+      <div class="stack-sm panel">
+        <span class="step-index">01</span>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
+        <h4>The paste is caught</h4>
+        <p class="text-dim">A content script intercepts the paste in any editable field before the text reaches the page, so nothing is committed until you have seen the redacted version.</p>
+      </div>
+      <div class="stack-sm panel">
+        <span class="step-index">02</span>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 5m0 1a1 1 0 0 1 1 -1h12a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-12a1 1 0 0 1 -1 -1z" /><path d="M9 9h6v6h-6z" /><path d="M3 10h2" /><path d="M3 14h2" /><path d="M10 3v2" /><path d="M14 3v2" /><path d="M21 10h-2" /><path d="M21 14h-2" /><path d="M10 21v-2" /><path d="M14 21v-2" /></svg>
+        <h4>A local model reads it</h4>
+        <p class="text-dim">The text is sent to a daemon bound to localhost, which runs the GLiNER2 model on device and returns the spans it found along with a masked copy. Long pastes are scanned in overlapping windows.</p>
+      </div>
+      <div class="stack-sm panel">
+        <span class="step-index">03</span>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.585 10.587a2 2 0 0 0 2.829 2.828" /><path d="M16.681 16.673a8.717 8.717 0 0 1 -4.681 1.327c-3.6 0 -6.6 -2 -9 -6c1.272 -2.12 2.712 -3.678 4.32 -4.674m2.86 -1.146a9.055 9.055 0 0 1 1.82 -.18c3.6 0 6.6 2 9 6c-.666 1.11 -1.379 2.067 -2.138 2.87" /><path d="M3 3l18 18" /></svg>
+        <h4>You choose what lands</h4>
+        <p class="text-dim">A small prompt offers the redacted text or the original. Pick one and it is inserted. The daemon keeps nothing, and no request ever leaves the machine.</p>
+      </div>
+    </div>
+
+    <!-- What it catches -->
+    <section class="split">
+      <div class="stack-md panel" id="detects">
+        <h3>What ClipCloak looks for</h3>
+        <p class="text-dim measure">The model is schema driven, so the label set is configurable. Out of the box it targets the identifiers that most often slip into a support ticket or a chat box. The fine tuned build adds South African name coverage the base model missed.</p>
+        <p class="text-dim measure">Detection runs at a threshold you set in the popup, near 0.55, trading recall against false positives.</p>
+      </div>
+      <div class="panel stack-sm">
+        <div class="data-row"><span class="data-key">name</span><span class="data-value mono">Thandeka Mokoena</span></div>
+        <div class="data-row"><span class="data-key">email</span><span class="data-value mono">t.mokoena@work.co.za</span></div>
+        <div class="data-row"><span class="data-key">phone_num</span><span class="data-value mono">082 555 0117</span></div>
+        <div class="data-row"><span class="data-key">id_num</span><span class="data-value mono">8305125…089</span></div>
+        <div class="data-row"><span class="data-key">street address</span><span class="data-value mono">14 Loop Street</span></div>
+        <div class="data-row"><span class="data-key">url</span><span class="data-value mono">example.co.za/u/42</span></div>
+        <div class="data-row"><span class="data-key">username</span><span class="data-value mono">@tmokoena</span></div>
+      </div>
+    </section>
+
+    <!-- On device / security -->
+    <section class="split">
+      <div class="stack-md panel" id="security">
+        <h3>Nothing leaves your machine</h3>
+        <p class="text-dim measure">The model runs in a daemon that binds to 127.0.0.1 only. It is not reachable from the network. A bearer token, generated for you by the desktop app, gates every request, and the daemon answers cross origin calls only for the pinned extension.</p>
+        <p class="text-dim measure">There are no accounts, no telemetry, and no cloud. The code is MIT licensed and the model weights are the ones named in the repository, so you can verify every claim on this page.</p>
+        <div>
+          <div class="data-row"><span class="data-key">bind</span><span class="data-value mono">127.0.0.1 only</span></div>
+          <div class="data-row"><span class="data-key">auth</span><span class="data-value mono">bearer token</span></div>
+          <div class="data-row"><span class="data-key">connection</span><span class="data-value is-live mono">reachable</span></div>
+        </div>
+      </div>
+      <div class="panel stack-md">
+        <p class="text-dim">Confirm the daemon is up and answering, on the loopback address, with one request:</p>
+<pre class="code"><span class="tok-comment"># the extension talks to this; so can you</span>
+curl <span class="tok-accent">http://127.0.0.1:8731/health</span>
+
+<span class="tok-comment"># classify a line the way the extension does</span>
+curl -s http://127.0.0.1:8731/classify \
+  -H "Authorization: Bearer <span class="tok-accent">$PII_TOKEN</span>" \
+  -d '{"text":"Call me on 082 555 0117"}'
+
+<span class="tok-comment"># => { "entities": [ ... ], "redacted": "Call me on [REDACTED]" }</span></pre>
+      </div>
+    </section>
+
+    <!-- Install -->
+    <section class="split">
+      <div class="stack-md panel" id="install">
+        <h3>Install it</h3>
+        <p class="text-dim measure">ClipCloak has two halves: the engine, a small Rust daemon that holds the model, and the extension, which hooks pastes in your browser. The desktop app bundles the engine and pairs the extension for you with no token to type.</p>
+        <p class="text-dim measure">Prefer to run it yourself? Build the daemon and load the extension unpacked. Full notes, including the Firefox native messaging setup, are in the repository.</p>
+        <div style="display:flex; gap:var(--space-sm); flex-wrap:wrap">
+          <a class="btn btn-outline" href="https://github.com/sjvrensburg/clipcloak/releases" target="_blank" rel="noopener">Releases</a>
+          <a class="btn btn-outline" href="https://github.com/sjvrensburg/clipcloak#readme" target="_blank" rel="noopener">Setup notes</a>
+        </div>
+      </div>
+      <div class="panel stack-md">
+        <p class="text-dim">Run the engine, then load the browser half:</p>
+<pre class="code"><span class="tok-comment"># 1. build and start the daemon</span>
+cd server && cargo build --release
+PII_TOKEN=<span class="tok-accent">your-secret</span> ./run.sh
+
+<span class="tok-comment"># 2. Chrome or Edge: chrome://extensions</span>
+<span class="tok-comment">#    enable Developer mode, Load unpacked,</span>
+<span class="tok-comment">#    pick extension-client/</span>
+
+<span class="tok-comment"># 3. Firefox: about:debugging, This Firefox,</span>
+<span class="tok-comment">#    Load Temporary Add-on, extension-firefox/</span></pre>
+        <p class="text-dim" style="font-size:0.875rem">With the desktop app running, steps 1 and the token are handled for you.</p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <a class="footer-brand" href="./">
+        <img src="assets/logo.png" alt="" />
+        ClipCloak
+      </a>
+      <nav class="footer-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="https://github.com/sjvrensburg/clipcloak" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/sjvrensburg/clipcloak/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      </nav>
+      <span class="mono">MIT · on device · no accounts</span>
+    </footer>
+
+  </div>
+</body>
+</html>
