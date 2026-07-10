@@ -163,21 +163,69 @@ jobs:
           path: desktop/src-tauri/target/release/bundle/nsis/*.exe
           retention-days: 1
 
+  # ---- 2c. Package the browser extensions (thin clients) ----
+  package-extensions:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+
+      # Guarantee the Firefox tree matches the Chrome source (only manifest.json
+      # legitimately differs). Fail the release if a sync was forgotten, so the
+      # two builds can never ship divergent logic.
+      - name: Verify Firefox is in sync
+        run: |
+          ./scripts/sync-firefox.sh
+          if ! git diff --quiet -- extension-firefox; then
+            echo "::error::extension-firefox is stale — run scripts/sync-firefox.sh and commit."
+            git --no-pager diff --stat -- extension-firefox
+            exit 1
+          fi
+
+      # Chrome: a plain zip is what the Web Store dashboard ingests. NEVER ship
+      # .keys/ or any .pem — that's the local signing secret for the pinned id.
+      - name: Package Chrome zip
+        run: |
+          cd extension-client
+          zip -rX "../pii-redactor-chrome-${GITHUB_REF_NAME}.zip" . \
+            -x ".keys/*" "*.pem" ".gitignore" "README.md"
+
+      # Firefox: web-ext lint catches manifest problems AMO would reject; build
+      # emits an unsigned .xpi. Signing happens on AMO upload (or add a
+      # `web-ext sign` step here once AMO_JWT_ISSUER/SECRET secrets exist).
+      # <all_urls> + nativeMessaging surface as *warnings*, not errors, so lint
+      # stays green; skim them once.
+      - name: Package Firefox xpi
+        run: |
+          npx --yes web-ext@latest lint  --source-dir extension-firefox
+          npx --yes web-ext@latest build --source-dir extension-firefox \
+            --artifacts-dir dist-ff --overwrite-dest
+          mv dist-ff/*.zip "pii-redactor-firefox-${GITHUB_REF_NAME}.xpi"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-extensions
+          path: |
+            pii-redactor-chrome-*.zip
+            pii-redactor-firefox-*.xpi
+          retention-days: 1
+
   # ---- 3. Attach everything to the GitHub Release ----
   release:
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, package-extensions]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
-      # Only the installer artifacts — NOT the raw `model` artifact, which the
-      # installers already bundle. Otherwise the release gets ~20 stray ONNX
-      # files attached alongside the three installers.
+      # The three installers plus the two extension packages — NOT the raw
+      # `model` artifact, which the installers already bundle (else the release
+      # gets ~20 stray ONNX files attached).
       - uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: "*-installer*"
+          pattern: "{*-installer*,browser-extensions}"
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
