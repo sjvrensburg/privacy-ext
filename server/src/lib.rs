@@ -52,6 +52,100 @@ pub fn chrome_extension_origin(id: &str) -> String {
 pub const DEFAULT_PORT: u16 = 8731;
 pub const DEFAULT_THRESHOLD: f32 = 0.55;
 
+// Score assigned to a user regex match. Higher than any model confidence (which
+// tops out near 1.0), so in `dedup_entities` / `mask_pii_text` a user rule always
+// wins an overlap against a model span — "rules run before the model".
+pub const RULE_SCORE: f32 = 2.0;
+
+// Defense-in-depth ceilings for user-supplied patterns. Rust's regex engine is
+// already linear-time (no catastrophic backtracking / ReDoS), but a pathological
+// pattern can still compile to a large automaton; bound it.
+const REGEX_SIZE_LIMIT: usize = 1 << 20; // 1 MiB compiled program
+const REGEX_DFA_SIZE_LIMIT: usize = 1 << 20;
+// Cap total matches folded in per request so a `.` -style rule on a big paste
+// can't produce an unbounded entity list.
+const MAX_RULE_MATCHES: usize = 512;
+
+/// A user-defined regex redaction rule, compiled and ready to run. `label` is the
+/// human name of the rule; it doubles as the entity label and (normalised) the
+/// mask tag, e.g. a rule named "Account number" masks to `[ACCOUNT_NUMBER]`.
+#[derive(Clone, Debug)]
+pub struct CompiledRule {
+    pub label: String,
+    pub re: regex::Regex,
+}
+
+impl CompiledRule {
+    /// Compile a pattern with the standard size limits. Returns the regex error
+    /// message (not the opaque Debug form) so the GUI can show it to the user.
+    pub fn new(label: impl Into<String>, pattern: &str) -> Result<Self, String> {
+        let re = regex::RegexBuilder::new(pattern)
+            .size_limit(REGEX_SIZE_LIMIT)
+            .dfa_size_limit(REGEX_DFA_SIZE_LIMIT)
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(CompiledRule { label: label.into(), re })
+    }
+}
+
+/// One regex match, in a shape convenient for the desktop "test filters" panel.
+#[derive(Clone, Debug, Serialize)]
+pub struct RuleHit {
+    /// The rule (label) that matched.
+    pub rule: String,
+    /// The matched substring.
+    pub text: String,
+    /// Byte offsets of the match in the sample text.
+    pub start: usize,
+    pub end: usize,
+}
+
+/// Regex-only redaction preview: run `rules` over `text` and return the matched
+/// spans plus the masked string, using the exact same matcher and masking the
+/// live daemon uses. Lets the settings UI test rules without touching the model.
+pub fn test_rules_preview(text: &str, rules: &[CompiledRule]) -> (Vec<RuleHit>, String) {
+    let ents = regex_entities(text, rules);
+    let masked = mask_pii_text(text, &ents);
+    let hits = ents
+        .iter()
+        .map(|e| RuleHit {
+            rule: e.label.clone(),
+            text: e.text.clone(),
+            start: e.start_char,
+            end: e.end_char,
+        })
+        .collect();
+    (hits, masked)
+}
+
+/// Run every rule over `text`, returning matches as entities with `RULE_SCORE`.
+/// Match offsets are byte offsets (what `mask_pii_text` and the windowing code
+/// use), so these pool directly with model spans. Empty matches are skipped, and
+/// the total is capped at `MAX_RULE_MATCHES`.
+pub fn regex_entities(text: &str, rules: &[CompiledRule]) -> Vec<ExtractedEntity> {
+    let mut out = Vec::new();
+    for rule in rules {
+        for m in rule.re.find_iter(text) {
+            if m.start() == m.end() {
+                continue;
+            }
+            out.push(ExtractedEntity {
+                text: m.as_str().to_string(),
+                label: rule.label.clone(),
+                score: RULE_SCORE,
+                start_tok: 0,
+                end_tok: 0,
+                start_char: m.start(),
+                end_char: m.end(),
+            });
+            if out.len() >= MAX_RULE_MATCHES {
+                return out;
+            }
+        }
+    }
+    out
+}
+
 /// Where the model lives. Bundled builds point at a local dir; otherwise the
 /// engine downloads from HuggingFace on first run.
 #[derive(Clone, Debug)]
@@ -90,6 +184,9 @@ pub struct LiveSettings {
     /// Entity labels to detect (this is the "what to redact" toggle set).
     pub labels: Vec<String>,
     pub threshold: f32,
+    /// User-defined regex rules, applied alongside the model with precedence over
+    /// it (see `regex_entities` / `RULE_SCORE`). Empty by default.
+    pub rules: Vec<CompiledRule>,
 }
 
 impl Default for LiveSettings {
@@ -98,6 +195,7 @@ impl Default for LiveSettings {
             token: None,
             labels: DEFAULT_LABELS.iter().map(|s| s.to_string()).collect(),
             threshold: DEFAULT_THRESHOLD,
+            rules: Vec::new(),
         }
     }
 }
@@ -346,9 +444,9 @@ impl Server {
         }
 
         // Snapshot live settings once for this request.
-        let (token, labels, default_threshold) = {
+        let (token, labels, default_threshold, rules) = {
             let s = self.state.read().unwrap();
-            (s.token.clone(), s.labels.clone(), s.threshold)
+            (s.token.clone(), s.labels.clone(), s.threshold, s.rules.clone())
         };
 
         if let Some(expected) = &token {
@@ -408,6 +506,11 @@ impl Server {
             }
         }
 
+        // Fold user regex matches in before dedup. They carry RULE_SCORE, so an
+        // overlap with a model span resolves in the rule's favour — user rules
+        // run "before" (take precedence over) the model.
+        pooled.extend(regex_entities(&req.text, &rules));
+
         let selected = dedup_entities(pooled);
         let redacted = mask_pii_text(&req.text, &selected);
         let entities: Vec<Ent> = selected
@@ -416,5 +519,73 @@ impl Server {
             .collect();
         let resp_body = serde_json::to_string(&ClassifyResp { entities, redacted, parts }).unwrap();
         let _ = request.respond(json_response(200, &resp_body, allow_origin));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn model_span(label: &str, text: &str, start: usize, end: usize, score: f32) -> ExtractedEntity {
+        ExtractedEntity {
+            text: text.to_string(),
+            label: label.to_string(),
+            score,
+            start_tok: 0,
+            end_tok: 0,
+            start_char: start,
+            end_char: end,
+        }
+    }
+
+    #[test]
+    fn regex_matches_produce_byte_offset_spans() {
+        let rules = vec![CompiledRule::new("Account", r"ACC-\d{4}").unwrap()];
+        let text = "ref ACC-1234 end";
+        let ents = regex_entities(text, &rules);
+        assert_eq!(ents.len(), 1);
+        let e = &ents[0];
+        assert_eq!(e.label, "Account");
+        assert_eq!(&text[e.start_char..e.end_char], "ACC-1234");
+        assert_eq!(e.score, RULE_SCORE);
+    }
+
+    #[test]
+    fn rule_wins_overlap_against_model_span() {
+        // A model span and a rule cover overlapping text; the rule must win.
+        let text = "id ACC-1234 x";
+        let model = model_span("id_num", "ACC-1234", 3, 11, 0.999);
+        let rules = vec![CompiledRule::new("Account", r"ACC-\d{4}").unwrap()];
+        let mut pooled = vec![model];
+        pooled.extend(regex_entities(text, &rules));
+        let selected = dedup_entities(pooled);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].label, "Account");
+        assert_eq!(mask_pii_text(text, &selected), "id [ACCOUNT] x");
+    }
+
+    #[test]
+    fn non_overlapping_rule_and_model_spans_coexist() {
+        let text = "ACC-1234 and bob@x.com";
+        let model = model_span("email", "bob@x.com", 13, 22, 0.99);
+        let rules = vec![CompiledRule::new("Account", r"ACC-\d{4}").unwrap()];
+        let mut pooled = vec![model];
+        pooled.extend(regex_entities(text, &rules));
+        let selected = dedup_entities(pooled);
+        assert_eq!(selected.len(), 2);
+        assert_eq!(mask_pii_text(text, &selected), "[ACCOUNT] and [EMAIL]");
+    }
+
+    #[test]
+    fn invalid_pattern_returns_error() {
+        assert!(CompiledRule::new("bad", r"(unclosed").is_err());
+    }
+
+    #[test]
+    fn empty_matches_are_skipped() {
+        // `a*` matches the empty string at every position; none should be kept.
+        let rules = vec![CompiledRule::new("star", r"a*").unwrap()];
+        let ents = regex_entities("bbb", &rules);
+        assert!(ents.is_empty());
     }
 }

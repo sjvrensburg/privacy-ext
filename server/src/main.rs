@@ -8,9 +8,35 @@
 // PII_MODELS_DIR points at a local directory of the 8 ONNX fragments + tokenizer.
 
 use clipcloak_server::{
-    new_live_state, LiveSettings, ModelSource, Server, ServerConfig, DEFAULT_EXTENSION_ORIGIN,
-    DEFAULT_LABELS, DEFAULT_PORT, DEFAULT_THRESHOLD,
+    new_live_state, CompiledRule, LiveSettings, ModelSource, Server, ServerConfig,
+    DEFAULT_EXTENSION_ORIGIN, DEFAULT_LABELS, DEFAULT_PORT, DEFAULT_THRESHOLD,
 };
+
+/// Parse `PII_RULES` (a JSON array of `{"name","pattern"}`) into compiled regex
+/// rules. Bad JSON is ignored with a warning; individual rules that fail to
+/// compile are skipped so one typo doesn't take the daemon down.
+fn parse_rules(json: &str) -> Vec<CompiledRule> {
+    let arr: Vec<serde_json::Value> = match serde_json::from_str(json) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("PII_RULES ignored (not a JSON array): {e}");
+            return Vec::new();
+        }
+    };
+    let mut out = Vec::new();
+    for v in arr {
+        let name = v.get("name").and_then(|x| x.as_str()).unwrap_or("").trim();
+        let pattern = v.get("pattern").and_then(|x| x.as_str()).unwrap_or("");
+        if name.is_empty() || pattern.is_empty() {
+            continue;
+        }
+        match CompiledRule::new(name, pattern) {
+            Ok(r) => out.push(r),
+            Err(e) => eprintln!("PII_RULES: skipping rule {name:?}: {e}"),
+        }
+    }
+    out
+}
 
 fn main() -> anyhow::Result<()> {
     if std::env::var("ORT_DYLIB_PATH").is_err() {
@@ -42,14 +68,23 @@ fn main() -> anyhow::Result<()> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_THRESHOLD);
 
+    let rules = std::env::var("PII_RULES")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| parse_rules(&s))
+        .unwrap_or_default();
+
     if token.is_none() {
         eprintln!("WARNING: no PII_TOKEN set — the endpoint is unauthenticated (dev mode).");
     }
     eprintln!("Labels: {labels:?}");
+    if !rules.is_empty() {
+        eprintln!("Custom regex rules: {}", rules.len());
+    }
     eprintln!("CORS allowed origins: {allowed_origins:?}");
 
     let config = ServerConfig { port, model, allowed_origins };
-    let state = new_live_state(LiveSettings { token, labels, threshold });
+    let state = new_live_state(LiveSettings { token, labels, threshold, rules });
     let server = Server::new(config, state);
     server.run()
 }

@@ -113,6 +113,7 @@ dependencies = [
  "gliner2_inference",
  "ort",
  "ort-sys",
+ "regex",
  "serde",
  "serde_json",
  "tiny_http",

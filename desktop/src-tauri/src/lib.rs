@@ -18,8 +18,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use clipcloak_server::{
-    init_ort, load_engine, new_live_state, LiveSettings, LiveState, ModelSource, Server,
-    ServerConfig, DEFAULT_LABELS, DEFAULT_PORT, DEFAULT_THRESHOLD,
+    init_ort, load_engine, new_live_state, test_rules_preview, CompiledRule, LiveSettings,
+    LiveState, ModelSource, RuleHit, Server, ServerConfig, DEFAULT_LABELS, DEFAULT_PORT,
+    DEFAULT_THRESHOLD,
 };
 use serde::{Deserialize, Serialize};
 use tauri::{
@@ -28,6 +29,21 @@ use tauri::{
     AppHandle, Manager, State, WindowEvent,
 };
 use tauri_plugin_autostart::ManagerExt;
+
+/// A user-defined regex redaction rule as persisted / edited in the GUI. `name`
+/// doubles as the entity label and mask tag. Compiled to a `CompiledRule` before
+/// it reaches the daemon (see `AppConfig::compiled_rules`).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct RuleConfig {
+    name: String,
+    pattern: String,
+    #[serde(default = "default_true")]
+    enabled: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
 
 /// Persisted user settings (written to <app_config_dir>/config.json).
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -38,6 +54,10 @@ struct AppConfig {
     threshold: f32,
     /// Entity labels currently enabled for redaction.
     enabled_labels: Vec<String>,
+    /// User-defined regex rules, applied with precedence over the model. Empty by
+    /// default; older configs without this key deserialize to an empty list.
+    #[serde(default)]
+    rules: Vec<RuleConfig>,
     /// Launch on login.
     autostart: bool,
     /// Chrome/Chromium/Edge extension ids authorised to pair via native
@@ -61,6 +81,7 @@ impl Default for AppConfig {
             token: String::new(),
             threshold: DEFAULT_THRESHOLD,
             enabled_labels: DEFAULT_LABELS.iter().map(|s| s.to_string()).collect(),
+            rules: Vec::new(),
             autostart: false,
             chrome_extension_ids: default_chrome_extension_ids(),
         }
@@ -77,13 +98,48 @@ impl AppConfig {
             .collect()
     }
 
+    /// Compile the enabled rules for the daemon, skipping any that are disabled,
+    /// blank, or fail to compile. `to_live` is infallible and runs at startup, so
+    /// a bad pattern in a stored config must not abort the launch — `save_config`
+    /// is where invalid patterns are rejected before they can be persisted.
+    fn compiled_rules(&self) -> Vec<CompiledRule> {
+        self.rules
+            .iter()
+            .filter(|r| r.enabled && !r.name.trim().is_empty() && !r.pattern.is_empty())
+            .filter_map(|r| CompiledRule::new(r.name.trim(), &r.pattern).ok())
+            .collect()
+    }
+
     fn to_live(&self) -> LiveSettings {
         LiveSettings {
             token: if self.token.trim().is_empty() { None } else { Some(self.token.clone()) },
             labels: self.enabled_labels.clone(),
             threshold: self.threshold,
+            rules: self.compiled_rules(),
         }
     }
+}
+
+/// Validate the enabled rules a Save is about to persist. Returns a readable
+/// message naming the first offender, or `Ok(())` if every enabled rule has a
+/// non-empty name and a pattern that compiles. Disabled rules are left alone so
+/// a work-in-progress draft can still be saved.
+fn validate_rules(rules: &[RuleConfig]) -> Result<(), String> {
+    for r in rules {
+        if !r.enabled {
+            continue;
+        }
+        if r.name.trim().is_empty() {
+            return Err("A rule is enabled but has no name.".to_string());
+        }
+        if r.pattern.is_empty() {
+            return Err(format!("Rule \"{}\" is enabled but has no pattern.", r.name.trim()));
+        }
+        if let Err(e) = CompiledRule::new(r.name.trim(), &r.pattern) {
+            return Err(format!("Rule \"{}\": {e}", r.name.trim()));
+        }
+    }
+    Ok(())
 }
 
 /// What the settings window renders: current config + the full label catalogue
@@ -339,6 +395,10 @@ fn get_config(state: State<Shared>) -> ConfigView {
 
 #[tauri::command]
 fn save_config(app: AppHandle, state: State<Shared>, mut config: AppConfig) -> Result<ConfigView, String> {
+    // Reject invalid regex rules before anything is applied or persisted, so a
+    // bad pattern surfaces in the UI instead of being silently dropped at load.
+    validate_rules(&config.rules)?;
+
     // `chrome_extension_ids` is a config-file-only escape hatch (no UI control),
     // so the settings window never sends it back. Preserve the stored value so a
     // Save can't silently reset an operator's manually-added Chrome id.
@@ -373,6 +433,44 @@ fn get_status(state: State<Shared>) -> serde_json::Value {
     })
 }
 
+/// What the "test filters" panel gets back: the regex-only redaction of the
+/// sample, the individual matches (to highlight), and any per-rule compile
+/// errors. Model detection is intentionally excluded — this tests the rules.
+#[derive(Serialize)]
+struct RuleTestResult {
+    redacted: String,
+    matches: Vec<RuleHit>,
+    errors: Vec<RuleError>,
+}
+
+#[derive(Serialize)]
+struct RuleError {
+    name: String,
+    error: String,
+}
+
+/// Compile the (possibly unsaved) rules from the editor and run them over the
+/// sample text, without touching the model. Enabled rules that fail to compile
+/// are reported in `errors`; the rest produce `matches` and the `redacted`
+/// preview. Reuses the daemon's own matcher/masker so the preview cannot drift
+/// from live behaviour.
+#[tauri::command]
+fn test_rules(rules: Vec<RuleConfig>, sample: String) -> RuleTestResult {
+    let mut compiled = Vec::new();
+    let mut errors = Vec::new();
+    for r in &rules {
+        if !r.enabled || r.name.trim().is_empty() || r.pattern.is_empty() {
+            continue;
+        }
+        match CompiledRule::new(r.name.trim(), &r.pattern) {
+            Ok(c) => compiled.push(c),
+            Err(e) => errors.push(RuleError { name: r.name.trim().to_string(), error: e }),
+        }
+    }
+    let (matches, redacted) = test_rules_preview(&sample, &compiled);
+    RuleTestResult { redacted, matches, errors }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -383,7 +481,7 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
-        .invoke_handler(tauri::generate_handler![get_config, save_config, get_status])
+        .invoke_handler(tauri::generate_handler![get_config, save_config, get_status, test_rules])
         .setup(|app| {
             let handle = app.handle().clone();
             ensure_ort_dylib(&handle);
