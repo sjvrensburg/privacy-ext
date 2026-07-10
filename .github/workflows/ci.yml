@@ -2,7 +2,7 @@ name: ci
 
 # Fast regression checks on every push/PR (the heavy installer build lives in
 # release.yml, tag-triggered). Two jobs:
-#   * server-smoke  — boot pii-server against the real model and assert the
+#   * server-smoke  — boot clipcloak-server against the real model and assert the
 #     health / auth / redaction contract the extension depends on.
 #   * desktop-check — compile the Tauri app (no bundling) so a broken desktop
 #     build is caught here instead of at release time.
@@ -99,8 +99,8 @@ jobs:
           mkdir -p resources/semplifica binaries
           touch resources/semplifica/placeholder resources/libonnxruntime.so
           triple="$(rustc -vV | sed -n 's/^host: //p')"
-          touch "binaries/pii-native-host-${triple}"
-          chmod +x "binaries/pii-native-host-${triple}"
+          touch "binaries/clipcloak-native-host-${triple}"
+          chmod +x "binaries/clipcloak-native-host-${triple}"
 
       - name: cargo check (desktop)
         working-directory: desktop/src-tauri

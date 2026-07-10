@@ -1,6 +1,6 @@
 name: release
 
-# Builds the Privacy Redactor desktop installers (Linux .AppImage, Windows
+# Builds the ClipCloak desktop installers (Linux .AppImage, Windows
 # NSIS .exe) with the GLiNER2 model and the ONNX runtime bundled in, so an
 # ordinary user installs one file and it just works — no model download, no
 # runtime to install.

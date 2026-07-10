@@ -3,8 +3,8 @@
 // content script would be blocked by the page's CSP/CORS).
 //
 // Zero-config pairing: rather than the user typing a URL/token into the popup,
-// we ask the Privacy Redactor tray app for its port + token via Chrome Native
-// Messaging (see desktop/src-tauri/src/bin/pii-native-host.rs). The result is
+// we ask the ClipCloak tray app for its port + token via Chrome Native
+// Messaging (see desktop/src-tauri/src/bin/clipcloak-native-host.rs). The result is
 // cached in storage.local and reused until a request comes back 401 (token
 // rotated) or the popup asks us to re-pair.
 
@@ -14,7 +14,7 @@
 // and ai-sites.js is already loaded ahead of us — so guard the call.
 if (typeof importScripts === "function") importScripts("ai-sites.js");
 
-const NATIVE_HOST = "ai.semplifica.privacy_redactor";
+const NATIVE_HOST = "ai.semplifica.clipcloak";
 
 function sendNativeMessage(message, timeoutMs = 3000) {
   return new Promise((resolve) => {
@@ -39,7 +39,7 @@ function sendNativeMessage(message, timeoutMs = 3000) {
     } catch (e) {
       done({ ok: false, error: String(e?.message || e) });
     }
-    setTimeout(() => done({ ok: false, error: "native host timed out — is Privacy Redactor running?" }), timeoutMs);
+    setTimeout(() => done({ ok: false, error: "native host timed out — is ClipCloak running?" }), timeoutMs);
   });
 }
 
@@ -137,7 +137,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       });
       chrome.action.setTitle({
         tabId,
-        title: msg.active ? "PII Redactor — active on this site" : "PII Redactor — inactive on this site",
+        title: msg.active ? "ClipCloak — active on this site" : "ClipCloak — inactive on this site",
       });
     }
     return false;

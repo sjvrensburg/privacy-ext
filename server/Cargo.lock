@@ -106,6 +106,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e4de3bc4ea267985becf712dc6d9eed8b04c953b3fcfb339ebc87acd9804901"
 
 [[package]]
+name = "clipcloak-server"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "gliner2_inference",
+ "ort",
+ "ort-sys",
+ "serde",
+ "serde_json",
+ "tiny_http",
+]
+
+[[package]]
 name = "console"
 version = "0.15.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1309,19 +1322,6 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
-
-[[package]]
-name = "pii-server"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "gliner2_inference",
- "ort",
- "ort-sys",
- "serde",
- "serde_json",
- "tiny_http",
-]
 
 [[package]]
 name = "pin-project-lite"

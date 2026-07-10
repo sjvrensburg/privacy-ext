@@ -10,14 +10,14 @@ pastes, asks the daemon, and offers redacted vs. original text. No text leaves
 the machine.
 
 ```
-content.js (paste hook) ─▶ background.js ─fetch─▶ 127.0.0.1:8731  (pii-server, Rust)
+content.js (paste hook) ─▶ background.js ─fetch─▶ 127.0.0.1:8731  (clipcloak-server, Rust)
        ▲                                                  │ gliner2-rs (8 ONNX fragments)
        └──────────── redacted text / spans ◀──────────────┘
 ```
 
 ## Layout
 
-- `server/` — the Rust daemon (`pii-server`). `tiny_http` (sync; the model call
+- `server/` — the Rust daemon (`clipcloak-server`). `tiny_http` (sync; the model call
   blocks and is serialized, so no async runtime) + `gliner2_inference`
   (vendored `gliner2-rs` at `server/vendor-gliner2-rs/`) + `ort` (load-dynamic).
   `src/main.rs` is the whole server; `run.sh` launches it.

@@ -1,12 +1,12 @@
 [package]
-name = "pii-desktop"
+name = "clipcloak-desktop"
 version = "0.4.0"
 edition = "2021"
-description = "Privacy Redactor — tray app for the on-device PII redaction daemon"
+description = "ClipCloak — tray app for the on-device PII redaction daemon"
 license = "MIT"
 
 [lib]
-name = "pii_desktop_lib"
+name = "clipcloak_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -20,7 +20,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 uuid = { version = "1", features = ["v4"] }
-pii-server = { path = "../../server" }
+clipcloak-server = { path = "../../server" }
 dirs = "5"
 
 [target.'cfg(windows)'.dependencies]

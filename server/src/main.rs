@@ -7,7 +7,7 @@
 // First run downloads the model (~620 MB) into the HF cache, unless
 // PII_MODELS_DIR points at a local directory of the 8 ONNX fragments + tokenizer.
 
-use pii_server::{
+use clipcloak_server::{
     new_live_state, LiveSettings, ModelSource, Server, ServerConfig, DEFAULT_EXTENSION_ORIGIN,
     DEFAULT_LABELS, DEFAULT_PORT, DEFAULT_THRESHOLD,
 };
@@ -16,7 +16,7 @@ fn main() -> anyhow::Result<()> {
     if std::env::var("ORT_DYLIB_PATH").is_err() {
         eprintln!("WARNING: ORT_DYLIB_PATH not set; ort may fail to find libonnxruntime.so");
     }
-    ort::init().with_name("pii-server").commit()?;
+    ort::init().with_name("clipcloak-server").commit()?;
 
     let model = if let Ok(dir) = std::env::var("PII_MODELS_DIR") {
         ModelSource::LocalDir(dir)

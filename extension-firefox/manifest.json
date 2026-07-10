@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "PII Redactor (local daemon client)",
+  "name": "ClipCloak (local daemon client)",
   "version": "0.4.0",
   "description": "Detects and redacts PII pasted into web forms via a local on-device model daemon.",
   "browser_specific_settings": {
@@ -21,7 +21,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "PII Redactor",
+    "default_title": "ClipCloak",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
