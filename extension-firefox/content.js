@@ -146,7 +146,7 @@ function undoRedaction(snap) {
 // While the daemon classifies the pasted text there's a short delay (the model
 // call is serialized server-side). Show a small spinner anchored to the field
 // so the paste doesn't feel frozen. Returns a disposer that hides it.
-function showSpinner(el) {
+function showSpinner(el, labelText = "Checking for PII…") {
   document.querySelectorAll(".pf-spinner").forEach((n) => n.remove());
   const box = document.createElement("div");
   box.className = "pf-spinner";
@@ -156,7 +156,7 @@ function showSpinner(el) {
   box.appendChild(ring);
 
   const label = document.createElement("span");
-  label.textContent = "Checking for PII…";
+  label.textContent = labelText;
   box.appendChild(label);
 
   const r = el.getBoundingClientRect();
@@ -176,7 +176,7 @@ function showSpinner(el) {
   };
 }
 
-function showToast(el, snapshot, entities) {
+function showToast(el, snapshot, entities, parts = 1) {
   document.querySelectorAll(".pf-toast").forEach((n) => n.remove());
   const box = document.createElement("div");
   box.className = "pf-toast";
@@ -184,7 +184,9 @@ function showToast(el, snapshot, entities) {
   const labels = [...new Set(entities.map((e) => e.label))].join(", ");
   const msg = document.createElement("span");
   msg.className = "pf-msg";
-  msg.textContent = `Redacted ${entities.length} item(s): ${labels}`;
+  // parts > 1 means the daemon scanned a large paste in overlapping windows.
+  const scanned = parts > 1 ? ` (large paste, scanned in ${parts} parts)` : "";
+  msg.textContent = `Redacted ${entities.length} item(s): ${labels}${scanned}`;
   box.appendChild(msg);
 
   const undoBtn = document.createElement("button");
@@ -236,15 +238,22 @@ function showNotice(el, message) {
 // The native paste has already been suppressed by the caller. Scan `text` and
 // insert either the redacted or (on any failure) the original — but always
 // insert something, so a suppressed paste can never silently vanish.
+// Above this the daemon still redacts (scanning in overlapping windows), but
+// it gets slow enough — and the wait long enough — that we cap it and paste the
+// original with a notice instead. Kept in sync with the server's MAX_TEXT_BYTES.
+const MAX_PASTE_CHARS = 20000;
+// Past a single model window the daemon chunks the text; tell the user the
+// wait is expected.
+const LARGE_PASTE_CHARS = 1500;
+
 function handlePaste(el, text) {
-  // The daemon caps request size. Rather than silently pasting a long block
-  // unredacted, insert the original but tell the user it wasn't scanned.
-  if (text.length > 5000) {
+  if (text.length > MAX_PASTE_CHARS) {
     insertText(el, text);
     showNotice(el, "Text too long to scan — pasted without redaction.");
     return;
   }
-  const hideSpinner = showSpinner(el);
+  const large = text.length > LARGE_PASTE_CHARS;
+  const hideSpinner = showSpinner(el, large ? "Scanning large paste…" : "Checking for PII…");
   chrome.runtime.sendMessage({ type: "PF_CLASSIFY", text }, (res) => {
     hideSpinner();
     // On any failure (daemon down, etc.) or no PII found, insert as-is.
@@ -260,7 +269,7 @@ function handlePaste(el, text) {
       insertText(el, text);
       return;
     }
-    showToast(el, snapshot, res.entities);
+    showToast(el, snapshot, res.entities, res.parts);
   });
 }
 

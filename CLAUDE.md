@@ -61,6 +61,12 @@ classifier), orchestrated by gliner2-rs. fp16 ≈ 620 MB total.
 - The V2 engine needs **`tokenizer.json` inside `PII_MODELS_DIR`**.
 - Tune detection with the popup **threshold** (~0.55). gliner2-rs returns
   ~0.999 confidence and a ready-made `redacted` string (`mask_pii_text`).
+- **Long text is windowed:** model inference is ~O(n²) (5 k chars ≈ 37 s in one
+  pass), so `/classify` scans text longer than `WINDOW_BYTES` (1500) in
+  overlapping windows (`OVERLAP_BYTES` 300, > any single entity so nothing
+  straddles a boundary), remaps offsets, pools, and masks once. The response
+  carries `parts` (window count); the extension caps pastes at 20 k chars and
+  the server rejects > `MAX_TEXT_BYTES` (40 k) with 413.
 
 A pure in-browser WASM build (onnxruntime-web + transformers.js, no daemon) was
 prototyped and validated, then dropped in favour of server-client. It lives in
