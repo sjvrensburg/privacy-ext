@@ -155,11 +155,22 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       seedVersion: AI_SITES_SEED_VERSION,
     });
   } else if (details.reason === "update") {
-    const { originSettings = {}, seedVersion = 0 } = await chrome.storage.local.get(["originSettings", "seedVersion"]);
+    const stored = await chrome.storage.local.get(["originSettings", "seedVersion", "defaultOriginActive"]);
+    const seedVersion = stored.seedVersion ?? 0;
+    const patch = {};
     if (seedVersion < AI_SITES_SEED_VERSION) {
-      const merged = { ...originSettings };
+      const merged = { ...(stored.originSettings || {}) };
       for (const h of DEFAULT_AI_SITES) if (!(h in merged)) merged[h] = { active: true };
-      await chrome.storage.local.set({ originSettings: merged, seedVersion: AI_SITES_SEED_VERSION });
+      patch.originSettings = merged;
+      patch.seedVersion = AI_SITES_SEED_VERSION;
     }
+    // Migrating from a pre-per-site build (no defaultOriginActive was ever
+    // persisted): that version redacted on every site. Fail safe for a privacy
+    // tool — keep redacting broadly rather than silently narrowing to the
+    // curated list; the user can switch sites off via the per-site toggle.
+    if (!("defaultOriginActive" in stored)) {
+      patch.defaultOriginActive = true;
+    }
+    if (Object.keys(patch).length) await chrome.storage.local.set(patch);
   }
 });

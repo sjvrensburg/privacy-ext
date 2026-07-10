@@ -117,7 +117,7 @@ function insertRedactedWithUndo(el, redacted, original) {
   const pos = start + redacted.length;
   el.setSelectionRange(pos, pos);
   el.dispatchEvent(new Event("input", { bubbles: true }));
-  return { kind: "value", el, start, redactedLength: redacted.length, originalText: original };
+  return { kind: "value", el, start, redacted, originalText: original };
 }
 
 function undoRedaction(snap) {
@@ -126,8 +126,18 @@ function undoRedaction(snap) {
     undoContentEditable(snap);
     return;
   }
-  const { el, start, redactedLength, originalText } = snap;
-  el.value = el.value.slice(0, start) + originalText + el.value.slice(start + redactedLength);
+  const { el, redacted, originalText } = snap;
+  // The field may have been edited since the paste, making the captured offset
+  // stale. Only splice where the redacted text actually still sits: prefer the
+  // original offset, else an unambiguous single occurrence. Otherwise do
+  // nothing rather than corrupt unrelated content.
+  let start = snap.start;
+  if (el.value.substr(start, redacted.length) !== redacted) {
+    const first = el.value.indexOf(redacted);
+    if (first === -1 || first !== el.value.lastIndexOf(redacted)) return;
+    start = first;
+  }
+  el.value = el.value.slice(0, start) + originalText + el.value.slice(start + redacted.length);
   const pos = start + originalText.length;
   el.setSelectionRange(pos, pos);
   el.dispatchEvent(new Event("input", { bubbles: true }));
