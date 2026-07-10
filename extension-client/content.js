@@ -24,10 +24,15 @@ function updateActive(next) {
   if (isTopFrame) chrome.runtime.sendMessage({ type: "PF_TAB_STATE", active });
 }
 
-chrome.storage.local.get(["enabled", "originSettings", "defaultOriginActive"]).then((s) => {
-  state = { ...state, ...s };
-  updateActive(resolveActive(state));
-});
+// Resolves once the first storage read lands. A paste that fires before this
+// settles must not be let through unredacted (see the paste handler), so we
+// keep the promise to await it rather than racing the sentinel `active`.
+const ready = chrome.storage.local
+  .get(["enabled", "originSettings", "defaultOriginActive"])
+  .then((s) => {
+    state = { ...state, ...s };
+    updateActive(resolveActive(state));
+  });
 
 chrome.storage.onChanged.addListener((changes) => {
   let touched = false;
@@ -192,27 +197,86 @@ function showToast(el, snapshot, entities) {
   setTimeout(() => box.remove(), 8000);
 }
 
+// A brief, non-blocking message (no Undo) — used when we deliberately insert
+// the original text and want the user to know it wasn't scanned.
+function showNotice(el, message) {
+  document.querySelectorAll(".pf-toast").forEach((n) => n.remove());
+  const box = document.createElement("div");
+  box.className = "pf-toast";
+
+  const msg = document.createElement("span");
+  msg.className = "pf-msg";
+  msg.textContent = message;
+  box.appendChild(msg);
+
+  const dismissBtn = document.createElement("button");
+  dismissBtn.textContent = "×";
+  dismissBtn.className = "pf-dismiss";
+  dismissBtn.title = "Dismiss";
+  dismissBtn.addEventListener("click", () => box.remove());
+  box.appendChild(dismissBtn);
+
+  const r = el.getBoundingClientRect();
+  box.style.top = `${window.scrollY + r.bottom + 4}px`;
+  box.style.left = `${window.scrollX + r.left}px`;
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 6000);
+}
+
+// The native paste has already been suppressed by the caller. Scan `text` and
+// insert either the redacted or (on any failure) the original — but always
+// insert something, so a suppressed paste can never silently vanish.
+function handlePaste(el, text) {
+  // The daemon caps request size. Rather than silently pasting a long block
+  // unredacted, insert the original but tell the user it wasn't scanned.
+  if (text.length > 5000) {
+    insertText(el, text);
+    showNotice(el, "Text too long to scan — pasted without redaction.");
+    return;
+  }
+  const hideSpinner = showSpinner(el);
+  chrome.runtime.sendMessage({ type: "PF_CLASSIFY", text }, (res) => {
+    hideSpinner();
+    // On any failure (daemon down, etc.) or no PII found, insert as-is.
+    if (chrome.runtime.lastError || !res?.ok || !res.entities?.length) {
+      insertText(el, text);
+      return;
+    }
+    const snapshot = insertRedactedWithUndo(el, res.redacted, text);
+    // The redacted text couldn't be placed (e.g. a contenteditable editor lost
+    // its selection during the round-trip). Fall back to the original rather
+    // than dropping the paste, and don't claim a redaction that didn't happen.
+    if (!snapshot) {
+      insertText(el, text);
+      return;
+    }
+    showToast(el, snapshot, res.entities);
+  });
+}
+
 document.addEventListener(
   "paste",
   (ev) => {
-    if (!active) return;
     const el = ev.target;
     if (!isEditable(el)) return;
     const text = ev.clipboardData?.getData("text/plain");
-    if (!text || text.length > 5000) return;
+    if (!text) return; // no plain text (e.g. an image) — let the browser handle it
+
+    if (active === null) {
+      // Initial state hasn't resolved yet. Suppress the native paste *now*
+      // (preventDefault must be synchronous) so a fast paste on an auto-active
+      // site can't leak, then decide once the first storage read lands.
+      ev.preventDefault();
+      ev.stopPropagation();
+      ready
+        .then(() => (active ? handlePaste(el, text) : insertText(el, text)))
+        .catch(() => insertText(el, text));
+      return;
+    }
+    if (!active) return;
     ev.preventDefault();
     ev.stopPropagation();
-    const hideSpinner = showSpinner(el);
-    chrome.runtime.sendMessage({ type: "PF_CLASSIFY", text }, (res) => {
-      hideSpinner();
-      // On any failure (daemon down, etc.) or no PII found, insert as-is.
-      if (chrome.runtime.lastError || !res?.ok || !res.entities?.length) {
-        insertText(el, text);
-        return;
-      }
-      const snapshot = insertRedactedWithUndo(el, res.redacted, text);
-      showToast(el, snapshot, res.entities);
-    });
+    handlePaste(el, text);
   },
   true
 );
