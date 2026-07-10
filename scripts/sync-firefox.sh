@@ -12,7 +12,7 @@ dst="$root/extension-firefox"
 
 # Shared source + assets. background.js is cross-browser (it guards the
 # worker-only importScripts); manifest.json is intentionally NOT copied.
-for f in background.js content.js content.css popup.html popup.css popup.js ai-sites.js; do
+for f in background.js content.js content.css popup.html popup.css popup.js ai-sites.js redact.html redact.css redact.js; do
   cp "$src/$f" "$dst/$f"
 done
 

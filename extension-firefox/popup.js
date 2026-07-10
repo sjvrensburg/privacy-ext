@@ -95,6 +95,11 @@ $("save").addEventListener("click", async () => {
   status("Saved.", "ok");
 });
 
+// Open the standalone file-redaction page in a new tab.
+$("openRedact").addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("redact.html") });
+});
+
 // Round-trips a sample through the daemon via the background worker.
 // Persist the current form values first so you don't have to Save separately.
 $("test").addEventListener("click", async () => {

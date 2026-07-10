@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Redact a file — ClipCloak</title>
+  <link rel="stylesheet" href="redact.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img class="logo" src="icons/icon-48.png" alt="" width="34" height="34" />
+      <div>
+        <h1>Redact a file</h1>
+        <div class="sub">Names, emails, phone and ID numbers are removed on your machine before you download the copy.</div>
+      </div>
+      <span id="chipDot" class="dot checking" title="Daemon status"></span>
+    </header>
+
+    <p id="daemonWarn" class="banner err hidden">ClipCloak daemon isn't reachable. Open the ClipCloak app, then reload this page.</p>
+
+    <!-- Drop / choose -->
+    <section id="dropCard" class="card">
+      <div id="drop" class="drop" tabindex="0" role="button" aria-label="Choose a file to redact">
+        <div class="drop-title">Drag a file here, or click to choose</div>
+        <div class="drop-sub">Markdown, Quarto (.qmd), R Markdown (.Rmd), CSV, or plain text</div>
+      </div>
+      <input type="file" id="file" class="hidden"
+             accept=".md,.markdown,.mdown,.txt,.text,.csv,.tsv,.rmd,.qmd,.rmarkdown,.json,.yaml,.yml,.toml,.org,.rst,.tex,.log" />
+      <p class="hint">Files never leave your computer. Detection isn't perfect, so review the result before you upload it.</p>
+    </section>
+
+    <!-- Selected file + run -->
+    <section id="fileCard" class="card hidden">
+      <div class="file-row">
+        <div>
+          <div id="fileName" class="file-name">—</div>
+          <div id="fileMeta" class="file-meta"></div>
+        </div>
+        <button id="redactBtn" type="button">Redact file</button>
+      </div>
+      <p id="sizeWarn" class="hint warn hidden"></p>
+    </section>
+
+    <!-- Progress -->
+    <section id="progCard" class="card hidden">
+      <div class="prog-head">
+        <span id="progText">Redacting…</span>
+        <span id="progPct" class="mono"></span>
+      </div>
+      <div class="bar"><div id="barFill" class="bar-fill"></div></div>
+    </section>
+
+    <!-- Result -->
+    <section id="resultCard" class="card hidden">
+      <div class="result-head">
+        <h2 id="summary">Done</h2>
+        <div class="result-actions">
+          <button id="anotherBtn" class="ghost" type="button">Redact another</button>
+          <button id="downloadBtn" type="button">Download redacted file</button>
+        </div>
+      </div>
+      <div id="counts" class="counts"></div>
+      <div class="preview-head">
+        <span>Redacted preview</span>
+        <span id="previewNote" class="hint"></span>
+      </div>
+      <pre id="preview" class="preview"></pre>
+    </section>
+
+    <p id="errorMsg" class="banner err hidden"></p>
+  </div>
+
+  <script src="redact.js"></script>
+</body>
+</html>
